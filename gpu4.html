@@ -51,7 +51,7 @@
   </div>
 
   <div class="panel">
-    <div class="row"><label>Particelle (per sistema)</label><input id="sN" type="range" min="2000" max="300000" step="2000" value="60000"><span class="val" id="vN">60k</span></div>
+    <div class="row"><label>Particelle (per sistema)</label><input id="sN" type="range" min="2000" max="300000" step="2000" value="30000"><span class="val" id="vN">30k</span></div>
     <div class="row"><label>Forza della spinta</label><input id="sF" type="range" min="1" max="40" value="8"><span class="val" id="vF">0.08</span></div>
     <div class="row"><label>Attrito</label><input id="sD" type="range" min="0" max="40" value="8"><span class="val" id="vD">0.08</span></div>
     <div class="row"><label>Raggio d'interazione</label><input id="sR" type="range" min="6" max="48" value="16"><span class="val" id="vR">16</span></div>
@@ -96,10 +96,10 @@ const sp=[document.getElementById('sp1').getContext('2d'),document.getElementByI
 const hist=[[],[],[],[],[]]; // dist, sync, overlap, v1, v2
 
 const CW=720,CH=858,PW=720,PH=180,PANY=[20,234,448,662];
-const MAXN=300000,CAP=48,CELL_MIN=10,DCOLS=200,DROWS=50,NDENS=DCOLS*DROWS;
+const MAXN=300000,CAP=48,CELL_MIN=10,DCOLS=400,DROWS=100,NDENS=DCOLS*DROWS;
 const COLS_MAX=Math.ceil(PW/CELL_MIN),ROWS_MAX=Math.ceil(PH/CELL_MIN),NCM=COLS_MAX*ROWS_MAX;
-const STEPS=[128,64,32,16,8,4,2,1], REF=22.0;
-let P={ N:60000,F:0.08,D:0.08,R:16,K:0.12,V:2.7,running:true,ballR:1.8,maxV:4.0,wall:0.85,omega:0.06 };
+const STEPS=[256,128,64,32,16,8,4,2,1], REF=16.0;
+let P={ N:30000,F:0.08,D:0.08,R:16,K:0.12,V:2.7,running:true,ballR:1.8,maxV:4.0,wall:0.85,omega:0.06 };
 
 const PHYS=`struct Par { n:u32,cols:u32,rows:u32,cap:u32, ww:f32,wh:f32,cell:f32,radius:f32, ballR:f32,force:f32,coupling:f32,damping:f32, maxV:f32,wall:f32,omega:f32,mode:u32 };`;
 const RU=`struct RU { ww:f32,wh:f32,dcols:u32,drows:u32, dcell:f32,pointSize:f32,n:u32,intensity:f32 };`;
@@ -202,9 +202,9 @@ const OVERLAP=RU+`
 @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3<u32>){
   let i=g.x; if(i>=R.n){return;} let p=pos[i];
   let cx=clamp(i32(p.x/R.ww*f32(R.dcols)),0,i32(R.dcols)-1); let cy=clamp(i32(p.y/R.wh*f32(R.drows)),0,i32(R.drows)-1);
-  let s=seed[u32(cy)*R.dcols+u32(cx)]; var dist=44.0;
+  let s=seed[u32(cy)*R.dcols+u32(cx)]; var dist=32.0;
   if(s!=0xffffffffu){ let sx=i32(s%R.dcols); let sy=i32(s/R.dcols); dist=sqrt(f32((cx-sx)*(cx-sx)+(cy-sy)*(cy-sy))); }
-  let e=clamp(dist/22.0,0.0,1.0); atomicAdd(&stat[0], u32(e*1000.0)); }`;
+  let e=clamp(dist/16.0,0.0,1.0); atomicAdd(&stat[0], u32(e*1000.0)); }`;
 
 const PART=RU+`
 @group(0) @binding(0) var<uniform> R: RU;
@@ -227,9 +227,9 @@ struct VO{ @builtin(position) clip:vec4<f32>, @location(0) uv:vec2<f32> };
   let p=q[vi]; var o:VO; o.clip=vec4<f32>(p,0.0,1.0); o.uv=vec2<f32>((p.x+1.0)*0.5,(1.0-p.y)*0.5); return o; }
 @fragment fn fs(i:VO)->@location(0) vec4<f32>{
   let cx=clamp(i32(i.uv.x*f32(R.dcols)),0,i32(R.dcols)-1); let cy=clamp(i32(i.uv.y*f32(R.drows)),0,i32(R.drows)-1);
-  let s=seed[u32(cy)*R.dcols+u32(cx)]; var dist=44.0;
+  let s=seed[u32(cy)*R.dcols+u32(cx)]; var dist=32.0;
   if(s!=0xffffffffu){ let sx=i32(s%R.dcols); let sy=i32(s/R.dcols); dist=sqrt(f32((cx-sx)*(cx-sx)+(cy-sy)*(cy-sy))); }
-  var e=clamp(dist/22.0,0.0,1.0); e=pow(e,3.0/R.intensity);
+  var e=clamp(dist/16.0,0.0,1.0); e=pow(e,3.0/R.intensity);
   return vec4<f32>(0.37*e,0.88*e,0.75*e,1.0); }`;
 
 let device,ctx,format;
