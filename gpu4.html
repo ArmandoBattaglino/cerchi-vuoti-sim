@@ -42,12 +42,14 @@
     <h1>Analisi GPU — 4 pannelli completi</h1>
     <p class="sub">Come l'altra pagina, ma sulla 4070. <b style="color:var(--accent)">Clicca in S1/S2</b> per iniettare palline.</p>
     <div class="stage">
-      <canvas id="cv" width="720" height="858"></canvas>
+      <canvas id="cv" width="720" height="1326"></canvas>
       <span class="fps" id="fps">—</span>
       <div class="lab" style="top:4px">S1 · obiettivi</div>
       <div class="lab" style="top:218px">S2 · frequenza (nessun obiettivo)</div>
       <div class="lab" style="top:432px">S3 · vuoti di S2</div>
       <div class="lab" style="top:646px">S4 · vuoti di S1</div>
+      <div class="lab" style="top:858px">Rilievo 3D · vuoti di S2 (picchi = vuoto)</div>
+      <div class="lab" style="top:1092px">Rilievo 3D · vuoti di S1 (picchi = vuoto)</div>
     </div>
     <div class="err" id="err"></div>
   </div>
@@ -103,7 +105,7 @@ function fail(m){ errBox.style.display='block'; errBox.textContent=m; console.er
 const sp=[document.getElementById('sp1').getContext('2d'),document.getElementById('sp2').getContext('2d'),document.getElementById('sp3').getContext('2d'),document.getElementById('sp4').getContext('2d')];
 const hist=[[],[],[],[],[]]; // dist, sync, overlap, v1, v2
 
-const CW=720,CH=858,PW=720,PH=180,PANY=[20,234,448,662];
+const CW=720,CH=1326,PW=720,PH=180,PANY=[20,234,448,662],PH_R=200,PANY5=[876,1110],RCOLS=160,RROWS=40,RVCOUNT=(RCOLS-1)*(RROWS-1)*6;
 const MAXN=300000,CAP=48,CELL_MIN=10,DCOLS_MAX=560,DROWS_MAX=140,NDENS_MAX=DCOLS_MAX*DROWS_MAX;
 const COLS_MAX=Math.ceil(PW/CELL_MIN),ROWS_MAX=Math.ceil(PH/CELL_MIN),NCM=COLS_MAX*ROWS_MAX;
 const STEPS=[512,256,128,64,32,16,8,4,2,1], REF=16.0;
@@ -247,12 +249,41 @@ struct VO{ @builtin(position) clip:vec4<f32>, @location(0) uv:vec2<f32> };
   var e=clamp(dist/16.0,0.0,1.0); e=pow(e,3.0/R.intensity);
   return vec4<f32>(0.37*e,0.88*e,0.75*e,1.0); }`;
 
+const RELIEF=`
+struct RLU { dcols:u32,drows:u32,rcols:u32,rrows:u32, angle:f32,hscale:f32,rf:f32,pad:f32 };
+@group(0) @binding(0) var<uniform> L: RLU;
+@group(0) @binding(1) var<storage,read> seed: array<u32>;
+struct VO{ @builtin(position) clip:vec4<f32>, @location(0) col:vec3<f32> };
+fn vAt(gx:i32,gy:i32)->f32{ let cx=clamp(gx,0,i32(L.dcols)-1); let cy=clamp(gy,0,i32(L.drows)-1);
+  let s=seed[u32(cy)*L.dcols+u32(cx)]; var d=L.rf*2.0;
+  if(s!=0xffffffffu){ let sx=i32(s%L.dcols); let sy=i32(s/L.dcols); d=sqrt(f32((cx-sx)*(cx-sx)+(cy-sy)*(cy-sy))); }
+  return clamp(d/L.rf,0.0,1.0); }
+fn proj(p:vec3<f32>)->vec3<f32>{ let ca=cos(L.angle); let sa=sin(L.angle);
+  let x1=p.x*ca-p.z*sa; let z1=p.x*sa+p.z*ca; let cp=cos(0.95); let sp=sin(0.95);
+  let y2=p.y*cp-z1*sp; let z2=p.y*sp+z1*cp; return vec3<f32>(x1,y2,z2); }
+@vertex fn vs(@builtin(vertex_index) vi:u32)->VO{
+  let rc=L.rcols; let rr=L.rrows; let quad=vi/6u; let corner=vi%6u;
+  let qx=quad%(rc-1u); let qy=quad/(rc-1u); var ox=0u; var oy=0u;
+  if(corner==1u){ox=1u;} else if(corner==2u){oy=1u;} else if(corner==3u){oy=1u;} else if(corner==4u){ox=1u;} else if(corner==5u){ox=1u;oy=1u;}
+  let gx=qx+ox; let gy=qy+oy;
+  let u=f32(gx)/f32(rc-1u); let v=f32(gy)/f32(rr-1u);
+  let sgx=i32(u*f32(L.dcols)); let sgy=i32(v*f32(L.drows));
+  let h=vAt(sgx,sgy);
+  let hx=vAt(sgx+2,sgy)-vAt(sgx-2,sgy); let hz=vAt(sgx,sgy+2)-vAt(sgx,sgy-2);
+  let n=normalize(vec3<f32>(-hx*4.0,1.0,-hz*4.0));
+  let lit=clamp(dot(n,normalize(vec3<f32>(0.4,0.85,0.35))),0.25,1.0);
+  let p=vec3<f32>((u-0.5)*2.6,(h-0.35)*L.hscale,(v-0.5)*0.9);
+  let pr=proj(p);
+  var o:VO; o.clip=vec4<f32>(pr.x*0.32,pr.y*0.9,pr.z*0.18+0.5,1.0);
+  o.col=vec3<f32>(0.30,0.85,0.72)*(0.22+h*0.95)*lit; return o; }
+@fragment fn fs(i:VO)->@location(0) vec4<f32>{ return vec4<f32>(i.col,1.0); }`;
+
 let device,ctx,format;
-let physBuf=[],ruBuf,ruDotBuf,juBuf=[],gcBuf,giBuf;
+let physBuf=[],ruBuf,ruDotBuf,rluBuf,depthTex,juBuf=[],gcBuf,giBuf;
 let pos=[[],[]],vel=[[],[]],ph=[[],[]],tgt=[],densBuf=[],seedBuf=[[],[]],accBuf=[],vstatBuf=[],ovBuf,exBuf=[];
 let pipes={}, BG={};
 let cur=0,grid={cols:1,rows:1,cell:16};
-const physAB=[new ArrayBuffer(64),new ArrayBuffer(64)], ruAB=new ArrayBuffer(48), ruDotAB=new ArrayBuffer(48);
+const physAB=[new ArrayBuffer(64),new ArrayBuffer(64)], ruAB=new ArrayBuffer(48), ruDotAB=new ArrayBuffer(48), rluAB=new ArrayBuffer(32);
 let stag=[], mapping=false;
 
 async function initGPU(){
@@ -266,7 +297,8 @@ async function initGPU(){
   try{ document.getElementById('gpuName').textContent=(adapter.info&&(adapter.info.description||adapter.info.vendor))||'GPU'; }catch(e){}
   ctx=cv.getContext('webgpu'); format=navigator.gpu.getPreferredCanvasFormat(); ctx.configure({device,format,alphaMode:'opaque'});
   const U=GPUBufferUsage, S=(sz,u)=>device.createBuffer({size:sz,usage:u});
-  physBuf=[S(64,U.UNIFORM|U.COPY_DST),S(64,U.UNIFORM|U.COPY_DST)]; ruBuf=S(48,U.UNIFORM|U.COPY_DST); ruDotBuf=S(48,U.UNIFORM|U.COPY_DST);
+  physBuf=[S(64,U.UNIFORM|U.COPY_DST),S(64,U.UNIFORM|U.COPY_DST)]; ruBuf=S(48,U.UNIFORM|U.COPY_DST); ruDotBuf=S(48,U.UNIFORM|U.COPY_DST); rluBuf=S(32,U.UNIFORM|U.COPY_DST);
+  depthTex=device.createTexture({size:[720,1326],format:'depth24plus',usage:GPUTextureUsage.RENDER_ATTACHMENT});
   for(let k=0;k<STEPS.length;k++){ juBuf.push(S(16,U.UNIFORM|U.COPY_DST)); }
   juBuf.initB=S(16,U.UNIFORM|U.COPY_DST);
   gcBuf=S(NCM*4,U.STORAGE|U.COPY_DST); giBuf=S(NCM*CAP*4,U.STORAGE);
@@ -283,6 +315,7 @@ async function initGPU(){
   pipes.ov=device.createComputePipeline({layout:'auto',compute:{module:sm(OVERLAP),entryPoint:'main'}});
   pipes.part=device.createRenderPipeline({layout:'auto',vertex:{module:sm(PART),entryPoint:'vs'},fragment:{module:sm(PART),entryPoint:'fs',targets:[{format}]},primitive:{topology:'triangle-list'}});
   pipes.heat=device.createRenderPipeline({layout:'auto',vertex:{module:sm(HEAT),entryPoint:'vs'},fragment:{module:sm(HEAT),entryPoint:'fs',targets:[{format}]},primitive:{topology:'triangle-list'}});
+  pipes.relief=device.createRenderPipeline({layout:'auto',vertex:{module:sm(RELIEF),entryPoint:'vs'},fragment:{module:sm(RELIEF),entryPoint:'fs',targets:[{format}]},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});
   const bg=(pl,e)=>device.createBindGroup({layout:pl.getBindGroupLayout(0),entries:e});
   BG.build=[[],[]];BG.sim=[[],[]];BG.dens=[[],[]];BG.part=[[],[]];BG.dot=[[],[]];BG.heat=[];BG.jinit=[];BG.jstep=[[],[]];BG.vred=[];BG.ov=[];
   for(let s=0;s<2;s++)for(let c=0;c<2;c++){
@@ -298,6 +331,7 @@ async function initGPU(){
     BG.vred[s]=bg(pipes.vred,[{binding:0,resource:{buffer:juBuf.initB}},{binding:1,resource:{buffer:seedBuf[s][0]}},{binding:2,resource:{buffer:vstatBuf[s]}}]);
     BG.heat[s]=bg(pipes.heat,[{binding:0,resource:{buffer:ruBuf}},{binding:1,resource:{buffer:seedBuf[s][0]}}]);
   }
+  BG.relief=[bg(pipes.relief,[{binding:0,resource:{buffer:rluBuf}},{binding:1,resource:{buffer:seedBuf[0][0]}}]),bg(pipes.relief,[{binding:0,resource:{buffer:rluBuf}},{binding:1,resource:{buffer:seedBuf[1][0]}}])];
   BG.ov=bg(pipes.ov,[{binding:0,resource:{buffer:ruBuf}},{binding:1,resource:{buffer:pos[0][0]}},{binding:2,resource:{buffer:seedBuf[1][0]}},{binding:3,resource:{buffer:ovBuf}}]); // rebuilt each frame (pos depends on cur)
   return true;
 }
@@ -351,6 +385,13 @@ function frame(t){
     rp.setViewport(0,PANY[3],PW,PH,0,1);rp.setPipeline(pipes.heat);rp.setBindGroup(0,BG.heat[0]);rp.draw(6,1);
     if(P.dots){ rp.setPipeline(pipes.part);rp.setBindGroup(0,BG.dot[0][cur]);rp.draw(6,N); }
     rp.end();
+    // rilievi 3D (pass separato con depth)
+    { const lu=new Uint32Array(rluAB),lf=new Float32Array(rluAB); lu[0]=P.dcols;lu[1]=P.drows;lu[2]=RCOLS;lu[3]=RROWS;lf[4]=t*0.0004;lf[5]=1.3;lf[6]=16.0; device.queue.writeBuffer(rluBuf,0,rluAB); }
+    const rp2=enc.beginRenderPass({colorAttachments:[{view,loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:depthTex.createView(),depthClearValue:1.0,depthLoadOp:'clear',depthStoreOp:'store'}});
+    rp2.setPipeline(pipes.relief);
+    rp2.setViewport(0,PANY5[0],PW,PH_R,0,1); rp2.setBindGroup(0,BG.relief[1]); rp2.draw(RVCOUNT);
+    rp2.setViewport(0,PANY5[1],PW,PH_R,0,1); rp2.setBindGroup(0,BG.relief[0]); rp2.draw(RVCOUNT);
+    rp2.end();
     // readback metriche (non bloccante)
     let sb=null; if(!mapping){ sb=stag.find(b=>b.mapState==='unmapped'); }
     if(sb){ enc.copyBufferToBuffer(accBuf[0],0,sb,0,16); enc.copyBufferToBuffer(accBuf[1],0,sb,16,16); enc.copyBufferToBuffer(vstatBuf[0],0,sb,32,8); enc.copyBufferToBuffer(vstatBuf[1],0,sb,40,8); enc.copyBufferToBuffer(ovBuf,0,sb,48,8); }
