@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sistema + complemento + analisi vuoti</title>
+<style>
+  :root{ --bg:#0b0d12; --panel:#141821; --ink:#e7ecf3; --dim:#8a93a6; --accent:#5ee0c0; --warm:#ffb14e; --line:#232a37; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink);
+        font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  .wrap{ max-width:1060px; margin:0 auto; padding:20px; display:grid; grid-template-columns:600px 1fr; gap:22px; align-items:start; }
+  @media(max-width:980px){ .wrap{ grid-template-columns:1fr; } }
+  h1{ font-size:17px; margin:0 0 4px; font-weight:650; }
+  .sub{ color:var(--dim); margin:0 0 12px; font-size:13px; }
+  canvas#cv{ background:#080a0f; border:1px solid var(--line); border-radius:12px; display:block; cursor:crosshair; }
+  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 18px; position:sticky; top:16px; }
+  .rule{ font-size:12.5px; color:var(--dim); margin:0 0 12px; } .rule b{ color:var(--ink); font-weight:600; }
+  .row{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin:10px 0; }
+  .row label{ color:var(--dim); }
+  .row .val{ color:var(--accent); font-variant-numeric:tabular-nums; min-width:52px; text-align:right; }
+  input[type=range]{ width:172px; accent-color:var(--accent); }
+  .chk{ display:flex; align-items:center; gap:9px; margin:9px 0; color:var(--dim); cursor:pointer; }
+  .chk input{ width:16px; height:16px; accent-color:var(--accent); }
+  .btns{ display:flex; gap:10px; margin-top:13px; flex-wrap:wrap; }
+  button{ flex:1; min-width:110px; background:#1b2130; color:var(--ink); border:1px solid var(--line);
+           border-radius:9px; padding:9px 12px; font-size:14px; cursor:pointer; }
+  button:hover{ background:#232c3d; border-color:#31405a; }
+  button.primary{ background:var(--accent); color:#04120e; border-color:var(--accent); font-weight:650; }
+  .metric{ margin-top:13px; padding-top:11px; border-top:1px solid var(--line); }
+  .metric .lab{ color:var(--dim); font-size:12px; }
+  .metric .big{ font-size:20px; font-weight:650; font-variant-numeric:tabular-nums; }
+  .metric .sm{ color:var(--dim); font-size:12px; } .metric .sm b{ color:var(--warm); }
+  .acc{ color:var(--accent)!important; } .warm{ color:var(--warm)!important; }
+  .spark{ margin-top:6px; border:1px solid var(--line); border-radius:7px; background:#080a0f; display:block; }
+  .hint{ margin-top:13px; font-size:12.5px; color:var(--dim); line-height:1.55; } .hint b{ color:var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <h1>Sistema · complemento · analisi dei vuoti</h1>
+    <p class="sub">Clicca in S1 o S2: nasce una pallina in <b style="color:var(--accent)">entrambi</b>. Il terzo quadrato è solo analisi.</p>
+    <canvas id="cv" width="560" height="916"></canvas>
+  </div>
+
+  <div class="panel">
+    <p class="rule">
+      <b>S1 · obiettivi:</b> conosce la posizione-meta, si muove spingendo gli altri, genera un <b>battito</b>.<br>
+      <b>S2 · frequenza:</b> nessun obiettivo, conosce solo il battito di S1 → gira la fase a quel ritmo e si <b>sincronizza</b>.<br>
+      <b>S3 · vuoti (solo visiva):</b> il <b>negativo</b> di S2 — le zone lontane da ogni pallina si illuminano.
+    </p>
+
+    <div class="row"><label>Palline alla nascita</label><input id="sN" type="range" min="4" max="500" value="60"><span class="val" id="vN">60</span></div>
+    <div class="row"><label>Forza della spinta</label><input id="sF" type="range" min="1" max="20" value="6"><span class="val" id="vF">0.06</span></div>
+    <div class="row"><label>Attrito</label><input id="sD" type="range" min="0" max="30" value="6"><span class="val" id="vD">0.06</span></div>
+    <div class="row"><label>Raggio d'interazione</label><input id="sR" type="range" min="24" max="200" value="80"><span class="val" id="vR">80</span></div>
+    <div class="row"><label>Accoppiamento (sync S2)</label><input id="sK" type="range" min="0" max="20" value="7"><span class="val" id="vK">0.07</span></div>
+    <div class="row"><label>Intensità vuoti (S3)</label><input id="sV" type="range" min="1" max="20" value="10"><span class="val" id="vV">1.0</span></div>
+    <div class="row"><label>Risoluzione S3 (griglie)</label><input id="sRes" type="range" min="10" max="300" value="60"><span class="val" id="vRes">60</span></div>
+
+    <label class="chk"><input type="checkbox" id="cFilter"> Filtro spostamenti (colore opposto)</label>
+    <label class="chk"><input type="checkbox" id="cGlow" checked> Frequenza scambi (bagliore)</label>
+    <label class="chk"><input type="checkbox" id="cDots" checked> Mostra palline di riferimento in S3</label>
+
+    <div class="btns">
+      <button id="bPlay" class="primary">Pausa</button>
+      <button id="bAdd">Aggiungi 25</button>
+      <button id="bReset">Rigenera</button>
+    </div>
+
+    <div class="metric">
+      <div class="lab">S1 · distanza media dall'obiettivo</div>
+      <div class="big acc"><span id="mDist">—</span> <span style="font-size:12px;color:var(--dim)">px</span></div>
+      <div class="sm">battito S1: <b id="mEx1">—</b> · in gioco: <b id="mCount" style="color:var(--dim)">0</b>×2</div>
+      <canvas id="sp1" class="spark" width="330" height="42"></canvas>
+    </div>
+    <div class="metric">
+      <div class="lab">S2 · sincronizzazione (0 caos → 1 in fase)</div>
+      <div class="big warm"><span id="mSync">—</span></div>
+      <canvas id="sp2" class="spark" width="330" height="42"></canvas>
+    </div>
+    <div class="metric">
+      <div class="lab">Sovrapposizione S1 ↔ vuoti S2 (0 = stessi spazi · 1 = complementari)</div>
+      <div class="big" style="color:#c88bff"><span id="mOv">—</span></div>
+      <canvas id="sp3" class="spark" width="330" height="42"></canvas>
+    </div>
+    <div class="metric">
+      <div class="lab">Vuoto medio (concentrazione) — linea = S1</div>
+      <div class="big"><span id="mV1" style="color:#5ee0c0">—</span> <span style="font-size:12px;color:var(--dim)">S1</span> &nbsp;·&nbsp; <span id="mV2" style="color:var(--warm)">—</span> <span style="font-size:12px;color:var(--dim)">S2</span></div>
+      <canvas id="sp4" class="spark" width="330" height="42"></canvas>
+    </div>
+
+    <p class="hint">
+      <b>S3.</b> Più una zona è lontana da ogni pallina di S2, più si illumina: sono gli <b>spazi di vuoto</b>. Quando
+      S2 si sincronizza e le palline si addensano/driftano insieme, i vuoti diventano <b>grandi e connessi</b>; quando
+      è caotico, i vuoti sono piccoli e sparsi. Regola "Intensità vuoti" per il contrasto.
+    </p>
+  </div>
+</div>
+
+<script>
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d'), W=cv.width;
+const sp1=document.getElementById('sp1').getContext('2d'), sp2=document.getElementById('sp2').getContext('2d'), sp3=document.getElementById('sp3').getContext('2d'), sp4=document.getElementById('sp4').getContext('2d');
+const vcv=document.createElement('canvas'), vctx=vcv.getContext('2d');
+let hOv=[], hV1=[], lastVF2=null, lastVF1=null;
+
+const b1={x0:0,y0:18,x1:560,y1:218};
+const b2={x0:0,y0:244,x1:560,y1:444};
+const b3={x0:0,y0:470,x1:560,y1:670};
+const b4={x0:0,y0:696,x1:560,y1:896};
+
+let P={ F:0.06, D:0.06, R:80, k:0.42, maxV:3.6, wall:0.85, rad:6, N:60, K:0.07, V:1.0, cols:60 };
+let sys1=[], sys2=[], particles=[], running=true, hueSeed=0, filter=false, glow=true, dots=true;
+let hE1=[], hS=[];
+
+function rnd(a,b){ return a+Math.random()*(b-a); }
+function nextHue(){ const h=(hueSeed*137.508)%360; hueSeed++; return h; }
+
+function addPair(lx,ly){
+  const h=nextHue(), col=`hsl(${h},70%,60%)`, opp=`hsl(${(h+180)%360},80%,62%)`;
+  sys1.push({ x:b1.x0+lx, y:b1.y0+ly, vx:0,vy:0, tx:rnd(b1.x0+14,b1.x1-14), ty:rnd(b1.y0+14,b1.y1-14), color:col, opp, m:1, ex:0 });
+  sys2.push({ x:b2.x0+lx, y:b2.y0+ly, vx:0,vy:0, th:rnd(0,6.2832), color:col, opp, m:1, ex:0, sinAcc:0, cnt:0 });
+}
+function build(){ sys1=[];sys2=[];particles=[];hE1=[];hS=[];hueSeed=0;
+  const w=b1.x1-b1.x0, h=b1.y1-b1.y0; for(let i=0;i<P.N;i++) addPair(rnd(14,w-14), rnd(14,h-14)); }
+
+function stepSystem(sys,b,isGoal,omega){
+  const R=P.R,S=P.F,k=P.k, w=b.x1-b.x0, hh=b.y1-b.y0, cell=Math.max(R,P.rad*2);
+  const cols=Math.max(1,Math.ceil(w/cell)), rows=Math.max(1,Math.ceil(hh/cell));
+  const grid=new Array(cols*rows); for(let g=0;g<grid.length;g++)grid[g]=[];
+  for(let i=0;i<sys.length;i++){ const c=sys[i]; c.fx=0;c.fy=0;c.ex=0; if(!isGoal){c.sinAcc=0;c.cnt=0;}
+    const cx=Math.min(cols-1,Math.max(0,((c.x-b.x0)/cell)|0)), cy=Math.min(rows-1,Math.max(0,((c.y-b.y0)/cell)|0));
+    grid[cy*cols+cx].push(i); c._cx=cx;c._cy=cy; }
+  let exchanges=0;
+  for(let i=0;i<sys.length;i++){ const a=sys[i]; let adx,ady;
+    if(isGoal){ adx=a.tx-a.x; ady=a.ty-a.y; const al=Math.hypot(adx,ady)||1e-6; adx/=al; ady/=al; }
+    else { adx=Math.cos(a.th); ady=Math.sin(a.th); }
+    for(let ox=-1;ox<=1;ox++)for(let oy=-1;oy<=1;oy++){ const gx=a._cx+ox,gy=a._cy+oy;
+      if(gx<0||gy<0||gx>=cols||gy>=rows)continue;
+      for(const j of grid[gy*cols+gx]){ if(j<=i)continue; const bb=sys[j];
+        let dx=bb.x-a.x,dy=bb.y-a.y,dist=Math.hypot(dx,dy)||1e-6; const mind=P.rad*2;
+        if(dist<mind){ const nx=dx/dist,ny=dy/dist,fr=k*(mind-dist); a.fx-=fr*nx;a.fy-=fr*ny;bb.fx+=fr*nx;bb.fy+=fr*ny; }
+        if(dist<R){ exchanges++; a.ex++; bb.ex++; const mag=S*(1-dist/R); let bdx,bdy;
+          if(isGoal){ bdx=bb.tx-bb.x; bdy=bb.ty-bb.y; const bl=Math.hypot(bdx,bdy)||1e-6; bdx/=bl; bdy/=bl; }
+          else { bdx=Math.cos(bb.th); bdy=Math.sin(bb.th); }
+          a.fx+=mag*adx; a.fy+=mag*ady; bb.fx-=mag*adx; bb.fy-=mag*ady;
+          bb.fx+=mag*bdx; bb.fy+=mag*bdy; a.fx-=mag*bdx; a.fy-=mag*bdy;
+          if(!isGoal){ a.sinAcc+=Math.sin(bb.th-a.th); a.cnt++; bb.sinAcc+=Math.sin(a.th-bb.th); bb.cnt++; }
+        }
+      }
+    }
+  }
+  let sum=0, sx=0, sy=0;
+  for(const c of sys){
+    c.vx+=c.fx/c.m; c.vy+=c.fy/c.m; c.vx*=(1-P.D); c.vy*=(1-P.D);
+    const spd=Math.hypot(c.vx,c.vy); if(spd>P.maxV){c.vx*=P.maxV/spd;c.vy*=P.maxV/spd;}
+    c.x+=c.vx; c.y+=c.vy;
+    if(c.x<b.x0+P.rad){c.x=b.x0+P.rad;c.vx=-c.vx*P.wall;} if(c.x>b.x1-P.rad){c.x=b.x1-P.rad;c.vx=-c.vx*P.wall;}
+    if(c.y<b.y0+P.rad){c.y=b.y0+P.rad;c.vy=-c.vy*P.wall;} if(c.y>b.y1-P.rad){c.y=b.y1-P.rad;c.vy=-c.vy*P.wall;}
+    if(isGoal){ sum+=Math.hypot(c.x-c.tx,c.y-c.ty); }
+    else { c.th+=omega + P.K*(c.cnt? c.sinAcc/c.cnt : 0); sx+=Math.cos(c.th); sy+=Math.sin(c.th); }
+    if(filter && spd>0.4 && particles.length<4000 && Math.random()<0.35) particles.push({x:c.x,y:c.y,color:c.opp,life:1});
+  }
+  const metric = isGoal ? (sys.length? sum/sys.length : 0) : (sys.length? Math.hypot(sx/sys.length, sy/sys.length):0);
+  return {exchanges, metric};
+}
+
+// ---- analisi vuoti di S2 (distance transform su griglia) ----
+const INF=1e9;
+function voidFieldOf(sys,b){
+  const w=b.x1-b.x0, h=b.y1-b.y0, gc=Math.max(2,P.cols), CS=w/gc, gr=Math.max(1,Math.ceil(h/CS));
+  const D=new Float32Array(gc*gr); for(let i=0;i<D.length;i++) D[i]=INF;
+  for(const c of sys){ const lx=c.x-b.x0, ly=c.y-b.y0;
+    const gx=Math.min(gc-1,Math.max(0,(lx/CS)|0)), gy=Math.min(gr-1,Math.max(0,(ly/CS)|0)); D[gy*gc+gx]=0; }
+  const d1=1, d2=1.4142;
+  for(let y=0;y<gr;y++)for(let x=0;x<gc;x++){ const i=y*gc+x; let v=D[i];
+    if(x>0)v=Math.min(v,D[i-1]+d1); if(y>0)v=Math.min(v,D[i-gc]+d1);
+    if(x>0&&y>0)v=Math.min(v,D[i-gc-1]+d2); if(x<gc-1&&y>0)v=Math.min(v,D[i-gc+1]+d2); D[i]=v; }
+  for(let y=gr-1;y>=0;y--)for(let x=gc-1;x>=0;x--){ const i=y*gc+x; let v=D[i];
+    if(x<gc-1)v=Math.min(v,D[i+1]+d1); if(y<gr-1)v=Math.min(v,D[i+gc]+d1);
+    if(x<gc-1&&y<gr-1)v=Math.min(v,D[i+gc+1]+d2); if(x>0&&y<gr-1)v=Math.min(v,D[i+gc-1]+d2); D[i]=v; }
+  let mx=1; for(const v of D){ if(v<INF && v>mx) mx=v; }
+  let s=0; for(const v of D) s+=Math.min(v/mx,1); const mean=D.length? s/D.length:0;
+  return {D,gc,gr,CS,mx,mean};
+}
+
+function step(){
+  const r1=stepSystem(sys1,b1,true,0);
+  const exPer=sys1.length? r1.exchanges/sys1.length : 0;
+  const omega=0.02 + 0.12*Math.min(exPer/6,1);
+  const r2=stepSystem(sys2,b2,false,omega);
+  for(let i=particles.length-1;i>=0;i--){ particles[i].life-=0.03; if(particles[i].life<=0) particles.splice(i,1); }
+
+  // analisi vuoti: S3=vuoti(S2), S4=vuoti(S1) + sovrapposizione S1 ↔ vuoti(S2)
+  const vf2=voidFieldOf(sys2,b2); lastVF2=vf2;
+  const vf1=voidFieldOf(sys1,b1); lastVF1=vf1;
+  const gc=vf2.gc, gr=vf2.gr, CS=vf2.CS, dens=new Float32Array(gc*gr);
+  for(const c of sys1){ const lx=c.x-b1.x0, ly=c.y-b1.y0;
+    const gx=Math.min(gc-1,Math.max(0,(lx/CS)|0)), gy=Math.min(gr-1,Math.max(0,(ly/CS)|0)); dens[gy*gc+gx]++; }
+  const n1=sys1.length||1; let overlap=0;
+  for(let i=0;i<vf2.D.length;i++){ overlap += (dens[i]/n1)*Math.min(vf2.D[i]/vf2.mx,1); }
+  hOv.push(overlap); if(hOv.length>330) hOv.shift();
+  hV1.push(vf1.mean); if(hV1.length>330) hV1.shift();
+  document.getElementById('mOv').textContent=overlap.toFixed(3);
+  document.getElementById('mV1').textContent=vf1.mean.toFixed(3);
+  document.getElementById('mV2').textContent=vf2.mean.toFixed(3);
+
+  hE1.push(r1.exchanges); hS.push(r2.metric); if(hE1.length>330)hE1.shift(); if(hS.length>330)hS.shift();
+  document.getElementById('mDist').textContent=r1.metric.toFixed(1);
+  document.getElementById('mEx1').textContent=r1.exchanges;
+  document.getElementById('mSync').textContent=r2.metric.toFixed(2);
+  document.getElementById('mCount').textContent=sys1.length;
+}
+
+function drawSpark(g,arr,color){ const cvs=g.canvas; g.clearRect(0,0,cvs.width,cvs.height); if(arr.length<2)return;
+  const mx=Math.max(...arr),mn=Math.min(...arr),rng=(mx-mn)||1,w=cvs.width,h=cvs.height;
+  g.strokeStyle=color; g.lineWidth=1.5; g.beginPath();
+  for(let i=0;i<arr.length;i++){ const x=i/(arr.length-1)*w, y=h-4-(arr[i]-mn)/rng*(h-8); i?g.lineTo(x,y):g.moveTo(x,y); } g.stroke(); }
+
+function draw(){
+  ctx.clearRect(0,0,W,cv.height);
+  ctx.fillStyle='#8a93a6'; ctx.font='12px -apple-system,sans-serif';
+  ctx.fillText('S1 · obiettivi', b1.x0+3, b1.y0-6);
+  ctx.fillText('S2 · frequenza (nessun obiettivo)', b2.x0+3, b2.y0-6);
+  ctx.fillText('S3 · vuoti di S2 (solo visiva)', b3.x0+3, b3.y0-6);
+  ctx.fillText('S4 · vuoti di S1 (solo visiva)', b4.x0+3, b4.y0-6);
+  ctx.strokeStyle='#232a37';
+  for(const b of [b1,b2,b3,b4]) ctx.strokeRect(b.x0+.5,b.y0+.5,b.x1-b.x0-1,b.y1-b.y0-1);
+
+  // filtro (S1/S2)
+  if(filter){ for(const p of particles){ ctx.globalAlpha=p.life*0.5; ctx.fillStyle=p.color;
+    ctx.beginPath(); ctx.arc(p.x,p.y,P.rad*0.9,0,7); ctx.fill(); } ctx.globalAlpha=1; }
+  // S1 linee
+  for(const c of sys1){ ctx.strokeStyle=c.color; ctx.globalAlpha=0.12; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(c.x,c.y); ctx.lineTo(c.tx,c.ty); ctx.stroke();
+    ctx.globalAlpha=0.45; ctx.beginPath(); ctx.arc(c.tx,c.ty,2.3,0,7); ctx.stroke(); }
+  // S2 trattini fase
+  ctx.globalAlpha=0.6; ctx.lineWidth=1.4;
+  for(const c of sys2){ ctx.strokeStyle=c.color; ctx.beginPath(); ctx.moveTo(c.x,c.y);
+    ctx.lineTo(c.x+Math.cos(c.th)*9, c.y+Math.sin(c.th)*9); ctx.stroke(); }
+  ctx.globalAlpha=1;
+  // glow
+  if(glow){ for(const sys of [sys1,sys2]) for(const c of sys){ if(c.ex>0){ const g=Math.min(c.ex,10);
+    ctx.globalAlpha=g/10*0.4; ctx.fillStyle=c.color; ctx.beginPath(); ctx.arc(c.x,c.y,P.rad+g*1.5,0,7); ctx.fill(); } } ctx.globalAlpha=1; }
+  // palline
+  for(const sys of [sys1,sys2]) for(const c of sys){ ctx.fillStyle=c.color; ctx.beginPath(); ctx.arc(c.x,c.y,P.rad,0,7); ctx.fill(); }
+
+  // ---- S3 (vuoti S2) e S4 (vuoti S1) via ImageData ----
+  function renderVoid(vf,b,sys,srcB){ if(!vf) return; const {D,gc,gr,mx}=vf;
+    vcv.width=gc; vcv.height=gr; const img=vctx.createImageData(gc,gr);
+    for(let i=0;i<D.length;i++){ let e=Math.min(D[i]/mx,1); e=Math.pow(e,2/P.V);
+      const a=Math.min(255,e*e*235), o=i*4; img.data[o]=94; img.data[o+1]=224; img.data[o+2]=192; img.data[o+3]=a; }
+    vctx.putImageData(img,0,0); ctx.imageSmoothingEnabled=true;
+    ctx.drawImage(vcv,0,0,gc,gr, b.x0,b.y0, b.x1-b.x0, b.y1-b.y0);
+    if(dots){ ctx.fillStyle='rgba(8,10,15,0.7)';
+      for(const c of sys){ ctx.beginPath(); ctx.arc(b.x0+(c.x-srcB.x0), b.y0+(c.y-srcB.y0), 2.2,0,7); ctx.fill(); } }
+  }
+  renderVoid(lastVF2,b3,sys2,b2);
+  renderVoid(lastVF1,b4,sys1,b1);
+
+  drawSpark(sp1,hE1,'#ffb14e'); drawSpark(sp2,hS,'#ffb14e'); drawSpark(sp3,hOv,'#c88bff'); drawSpark(sp4,hV1,'#5ee0c0');
+}
+
+function loop(){ if(running) step(); draw(); requestAnimationFrame(loop); }
+
+function syncLabels(){
+  document.getElementById('vN').textContent=P.N;
+  document.getElementById('vF').textContent=P.F.toFixed(2);
+  document.getElementById('vD').textContent=P.D.toFixed(2);
+  document.getElementById('vR').textContent=P.R;
+  document.getElementById('vK').textContent=P.K.toFixed(2);
+  document.getElementById('vV').textContent=P.V.toFixed(1);
+  document.getElementById('vRes').textContent=P.cols;
+}
+document.getElementById('sN').oninput=e=>{ P.N=+e.target.value; syncLabels(); build(); };
+document.getElementById('sF').oninput=e=>{ P.F=+e.target.value/100; syncLabels(); };
+document.getElementById('sD').oninput=e=>{ P.D=+e.target.value/100; syncLabels(); };
+document.getElementById('sR').oninput=e=>{ P.R=+e.target.value; syncLabels(); };
+document.getElementById('sK').oninput=e=>{ P.K=+e.target.value/100; syncLabels(); };
+document.getElementById('sV').oninput=e=>{ P.V=+e.target.value/10; syncLabels(); };
+document.getElementById('sRes').oninput=e=>{ P.cols=+e.target.value; syncLabels(); };
+document.getElementById('cFilter').onchange=e=>{ filter=e.target.checked; if(!filter) particles=[]; };
+document.getElementById('cGlow').onchange=e=>{ glow=e.target.checked; };
+document.getElementById('cDots').onchange=e=>{ dots=e.target.checked; };
+document.getElementById('bPlay').onclick=e=>{ running=!running; e.target.textContent=running?'Pausa':'Play'; };
+document.getElementById('bReset').onclick=()=>build();
+document.getElementById('bAdd').onclick=()=>{ const w=b1.x1-b1.x0,h=b1.y1-b1.y0; for(let i=0;i<25;i++) addPair(rnd(14,w-14),rnd(14,h-14)); };
+cv.addEventListener('click',e=>{ const r=cv.getBoundingClientRect();
+  const cx=(e.clientX-r.left)*(W/r.width), cy=(e.clientY-r.top)*(cv.height/r.height); let lx,ly;
+  if(cy>=b1.y0&&cy<=b1.y1){ lx=cx-b1.x0; ly=cy-b1.y0; }
+  else if(cy>=b2.y0&&cy<=b2.y1){ lx=cx-b2.x0; ly=cy-b2.y0; }
+  else return;   // S3 = solo analisi, non interattivo
+  lx=Math.max(14,Math.min(b1.x1-b1.x0-14,lx)); ly=Math.max(14,Math.min(b1.y1-b1.y0-14,ly));
+  addPair(lx,ly);
+});
+
+syncLabels(); build(); loop();
+</script>
+</body>
+</html>
