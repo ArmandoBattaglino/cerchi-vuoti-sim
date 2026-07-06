@@ -3,26 +3,33 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Analisi GPU — 4 pannelli (WebGPU)</title>
+<title>Analisi GPU — 4 pannelli completi (WebGPU)</title>
 <style>
-  :root{ --bg:#0b0d12; --panel:#141821; --ink:#e7ecf3; --dim:#8a93a6; --accent:#5ee0c0; --line:#232a37; }
+  :root{ --bg:#0b0d12; --panel:#141821; --ink:#e7ecf3; --dim:#8a93a6; --accent:#5ee0c0; --warm:#ffb14e; --line:#232a37; }
   *{ box-sizing:border-box; }
   body{ margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
-  .wrap{ max-width:1120px; margin:0 auto; padding:20px; display:grid; grid-template-columns:720px 1fr; gap:22px; align-items:start; }
-  @media(max-width:1140px){ .wrap{ grid-template-columns:1fr; } }
+  .wrap{ max-width:1160px; margin:0 auto; padding:20px; display:grid; grid-template-columns:720px 1fr; gap:22px; align-items:start; }
+  @media(max-width:1180px){ .wrap{ grid-template-columns:1fr; } }
   h1{ font-size:17px; margin:0 0 4px; font-weight:650; }
   .sub{ color:var(--dim); margin:0 0 12px; font-size:13px; }
   .stage{ position:relative; }
   canvas#cv{ background:#080a0f; border:1px solid var(--line); border-radius:12px; display:block; }
   .lab{ position:absolute; left:8px; color:var(--dim); font-size:12px; pointer-events:none; text-shadow:0 1px 2px #000; }
+  .fps{ position:absolute; top:6px; right:12px; color:var(--dim); font-size:11px; font-variant-numeric:tabular-nums; text-shadow:0 1px 2px #000; }
   .panel{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 18px; position:sticky; top:16px; }
-  .row{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin:11px 0; }
-  .row label{ color:var(--dim); } .row .val{ color:var(--accent); font-variant-numeric:tabular-nums; min-width:64px; text-align:right; }
-  input[type=range]{ width:176px; accent-color:var(--accent); }
-  .btns{ display:flex; gap:10px; margin-top:13px; }
-  button{ flex:1; background:#1b2130; color:var(--ink); border:1px solid var(--line); border-radius:9px; padding:9px 12px; font-size:14px; cursor:pointer; }
+  .row{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin:10px 0; }
+  .row label{ color:var(--dim); } .row .val{ color:var(--accent); font-variant-numeric:tabular-nums; min-width:60px; text-align:right; }
+  input[type=range]{ width:168px; accent-color:var(--accent); }
+  .chk{ display:flex; align-items:center; gap:9px; margin:9px 0; color:var(--dim); cursor:pointer; }
+  .chk input{ width:16px; height:16px; accent-color:var(--accent); }
+  .btns{ display:flex; gap:10px; margin-top:13px; flex-wrap:wrap; }
+  button{ flex:1; min-width:110px; background:#1b2130; color:var(--ink); border:1px solid var(--line); border-radius:9px; padding:9px 12px; font-size:14px; cursor:pointer; }
   button:hover{ background:#232c3d; } button.primary{ background:var(--accent); color:#04120e; border-color:var(--accent); font-weight:650; }
-  .stat{ margin-top:14px; padding-top:12px; border-top:1px solid var(--line); color:var(--dim); font-size:13px; } .stat b{ color:var(--accent); font-variant-numeric:tabular-nums; }
+  .metric{ margin-top:13px; padding-top:11px; border-top:1px solid var(--line); }
+  .metric .lab2{ color:var(--dim); font-size:12px; } .metric .big{ font-size:20px; font-weight:650; font-variant-numeric:tabular-nums; }
+  .metric .sm{ color:var(--dim); font-size:12px; } .metric .sm b{ color:var(--warm); }
+  .acc{ color:var(--accent)!important; } .warm{ color:var(--warm)!important; }
+  .spark{ margin-top:6px; border:1px solid var(--line); border-radius:7px; background:#080a0f; display:block; }
   .err{ background:#2a1418; border:1px solid #5a2530; color:#ffb4b4; border-radius:10px; padding:14px; margin-top:10px; display:none; font-size:13px; }
   .hint{ margin-top:13px; font-size:12.5px; color:var(--dim); line-height:1.55; } .hint b{ color:var(--ink); }
 </style>
@@ -30,10 +37,11 @@
 <body>
 <div class="wrap">
   <div>
-    <h1>Analisi GPU — 4 pannelli</h1>
-    <p class="sub">S1 obiettivi · S2 frequenza · S3/S4 vuoti — tutto in compute shader sulla 4070.</p>
+    <h1>Analisi GPU — 4 pannelli completi</h1>
+    <p class="sub">Come l'altra pagina, ma sulla 4070: fisica, vuoti distance-field e metriche in compute shader.</p>
     <div class="stage">
       <canvas id="cv" width="720" height="858"></canvas>
+      <span class="fps" id="fps">—</span>
       <div class="lab" style="top:4px">S1 · obiettivi</div>
       <div class="lab" style="top:218px">S2 · frequenza (nessun obiettivo)</div>
       <div class="lab" style="top:432px">S3 · vuoti di S2</div>
@@ -43,7 +51,7 @@
   </div>
 
   <div class="panel">
-    <div class="row"><label>Particelle (per sistema)</label><input id="sN" type="range" min="2000" max="300000" step="2000" value="80000"><span class="val" id="vN">80k</span></div>
+    <div class="row"><label>Particelle (per sistema)</label><input id="sN" type="range" min="2000" max="300000" step="2000" value="60000"><span class="val" id="vN">60k</span></div>
     <div class="row"><label>Forza della spinta</label><input id="sF" type="range" min="1" max="40" value="8"><span class="val" id="vF">0.08</span></div>
     <div class="row"><label>Attrito</label><input id="sD" type="range" min="0" max="40" value="8"><span class="val" id="vD">0.08</span></div>
     <div class="row"><label>Raggio d'interazione</label><input id="sR" type="range" min="6" max="48" value="16"><span class="val" id="vR">16</span></div>
@@ -54,59 +62,75 @@
       <button id="bPlay" class="primary">Pausa</button>
       <button id="bReset">Rigenera</button>
     </div>
-    <div class="stat">In gioco: <b id="mCount">—</b>×2 · <b id="fps">—</b> fps · GPU: <b id="gpuName" style="color:var(--dim)">—</b></div>
 
-    <p class="hint">
-      <b>v1 GPU:</b> due sistemi accoppiati + vuoti come <b>campo di densità</b> (chiaro = vuoto). Le metriche e i
-      labirinti "distance-field" della versione CPU arrivano in v2. Serve <b>WebGPU</b> (Chrome/Edge recenti).
-    </p>
+    <div class="metric">
+      <div class="lab2">S1 · distanza media dall'obiettivo</div>
+      <div class="big acc"><span id="mDist">—</span> <span style="font-size:12px;color:var(--dim)">px</span></div>
+      <div class="sm">battito S1: <b id="mEx1">—</b> · in gioco: <b id="mCount" style="color:var(--dim)">0</b>×2</div>
+      <canvas id="sp1" class="spark" width="330" height="40"></canvas>
+    </div>
+    <div class="metric">
+      <div class="lab2">S2 · sincronizzazione (0 caos → 1 in fase)</div>
+      <div class="big warm"><span id="mSync">—</span></div>
+      <canvas id="sp2" class="spark" width="330" height="40"></canvas>
+    </div>
+    <div class="metric">
+      <div class="lab2">Sovrapposizione S1 ↔ vuoti S2</div>
+      <div class="big" style="color:#c88bff"><span id="mOv">—</span></div>
+      <canvas id="sp3" class="spark" width="330" height="40"></canvas>
+    </div>
+    <div class="metric">
+      <div class="lab2">Vuoto medio (concentrazione) — linea = S1</div>
+      <div class="big"><span id="mV1" style="color:#5ee0c0">—</span> <span style="font-size:12px;color:var(--dim)">S1</span> · <span id="mV2" style="color:var(--warm)">—</span> <span style="font-size:12px;color:var(--dim)">S2</span></div>
+      <canvas id="sp4" class="spark" width="330" height="40"></canvas>
+    </div>
+    <div class="stat" style="margin-top:12px;color:var(--dim);font-size:12px">GPU: <b id="gpuName" style="color:var(--accent)">—</b></div>
+    <p class="hint"><b>Motore GPU:</b> fisica + vuoti <b>distance-field</b> (jump-flood) + 4 metriche via reduction, tutto sulla 4070. Raggio basso = più struttura. Serve <b>WebGPU</b> (Chrome/Edge recenti).</p>
   </div>
 </div>
 
 <script type="module">
-const cv=document.getElementById('cv');
-const errBox=document.getElementById('err');
+const cv=document.getElementById('cv'), errBox=document.getElementById('err');
 function fail(m){ errBox.style.display='block'; errBox.textContent=m; console.error(m); }
+const sp=[document.getElementById('sp1').getContext('2d'),document.getElementById('sp2').getContext('2d'),document.getElementById('sp3').getContext('2d'),document.getElementById('sp4').getContext('2d')];
+const hist=[[],[],[],[],[]]; // dist, sync, overlap, v1, v2
 
-const CW=720, CH=858, PW=720, PH=180;
-const PANY=[20,234,448,662];               // y schermo dei 4 pannelli
-const MAXN=300000, CAP=48, CELL_MIN=10;
-const DCOLS=240, DROWS=60, NDENS=DCOLS*DROWS;
-const COLS_MAX=Math.ceil(PW/CELL_MIN), ROWS_MAX=Math.ceil(PH/CELL_MIN), NCELLS_MAX=COLS_MAX*ROWS_MAX;
+const CW=720,CH=858,PW=720,PH=180,PANY=[20,234,448,662];
+const MAXN=300000,CAP=48,CELL_MIN=10,DCOLS=200,DROWS=50,NDENS=DCOLS*DROWS;
+const COLS_MAX=Math.ceil(PW/CELL_MIN),ROWS_MAX=Math.ceil(PH/CELL_MIN),NCM=COLS_MAX*ROWS_MAX;
+const STEPS=[128,64,32,16,8,4,2,1], REF=22.0;
+let P={ N:60000,F:0.08,D:0.08,R:16,K:0.12,V:2.7,running:true,ballR:1.8,maxV:4.0,wall:0.85,omega:0.06 };
 
-let P={ N:80000, F:0.08, D:0.08, R:16, K:0.12, V:2.7, running:true, ballR:1.8, maxV:4.0, wall:0.85, omega:0.06 };
-
-const PHYS=`struct Par { n:u32,cols:u32,rows:u32,cap:u32, ww:f32,wh:f32,cell:f32,radius:f32,
-  ballR:f32,force:f32,coupling:f32,damping:f32, maxV:f32,wall:f32,omega:f32,mode:u32 };`;
+const PHYS=`struct Par { n:u32,cols:u32,rows:u32,cap:u32, ww:f32,wh:f32,cell:f32,radius:f32, ballR:f32,force:f32,coupling:f32,damping:f32, maxV:f32,wall:f32,omega:f32,mode:u32 };`;
 const RU=`struct RU { ww:f32,wh:f32,dcols:u32,drows:u32, dcell:f32,pointSize:f32,n:u32,intensity:f32 };`;
+const JU=`struct JU { step:u32,dcols:u32,drows:u32,ref:f32 };`;
 
 const BUILD=PHYS+`
 @group(0) @binding(0) var<uniform> P: Par;
-@group(0) @binding(1) var<storage, read> pos: array<vec2<f32>>;
-@group(0) @binding(2) var<storage, read_write> gc: array<atomic<u32>>;
-@group(0) @binding(3) var<storage, read_write> gi: array<u32>;
-@compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g: vec3<u32>){
-  let i=g.x; if(i>=P.n){return;}
-  let p=pos[i];
+@group(0) @binding(1) var<storage,read> pos: array<vec2<f32>>;
+@group(0) @binding(2) var<storage,read_write> gc: array<atomic<u32>>;
+@group(0) @binding(3) var<storage,read_write> gi: array<u32>;
+@compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3<u32>){
+  let i=g.x; if(i>=P.n){return;} let p=pos[i];
   var cx=clamp(i32(p.x/P.cell),0,i32(P.cols)-1); var cy=clamp(i32(p.y/P.cell),0,i32(P.rows)-1);
-  let c=u32(cy)*P.cols+u32(cx); let s=atomicAdd(&gc[c],1u); if(s<P.cap){ gi[c*P.cap+s]=i; }
-}`;
+  let c=u32(cy)*P.cols+u32(cx); let s=atomicAdd(&gc[c],1u); if(s<P.cap){ gi[c*P.cap+s]=i; } }`;
 
 const SIM=PHYS+`
 @group(0) @binding(0) var<uniform> P: Par;
-@group(0) @binding(1) var<storage, read> posIn: array<vec2<f32>>;
-@group(0) @binding(2) var<storage, read> velIn: array<vec2<f32>>;
-@group(0) @binding(3) var<storage, read> phIn: array<f32>;
-@group(0) @binding(4) var<storage, read> tgt: array<vec2<f32>>;
-@group(0) @binding(5) var<storage, read> gc: array<u32>;
-@group(0) @binding(6) var<storage, read> gi: array<u32>;
-@group(0) @binding(7) var<storage, read_write> posOut: array<vec2<f32>>;
-@group(0) @binding(8) var<storage, read_write> velOut: array<vec2<f32>>;
-@group(0) @binding(9) var<storage, read_write> phOut: array<f32>;
-fn dirOf(i:u32,p:vec2<f32>)->vec2<f32>{ if(P.mode==0u){ let d=tgt[i]-p; return d/max(length(d),1e-6); } return vec2<f32>(cos(phIn[i]),sin(phIn[i])); }
-@compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g: vec3<u32>){
+@group(0) @binding(1) var<storage,read> posIn: array<vec2<f32>>;
+@group(0) @binding(2) var<storage,read> velIn: array<vec2<f32>>;
+@group(0) @binding(3) var<storage,read> phIn: array<f32>;
+@group(0) @binding(4) var<storage,read> tgt: array<vec2<f32>>;
+@group(0) @binding(5) var<storage,read> gc: array<u32>;
+@group(0) @binding(6) var<storage,read> gi: array<u32>;
+@group(0) @binding(7) var<storage,read_write> posOut: array<vec2<f32>>;
+@group(0) @binding(8) var<storage,read_write> velOut: array<vec2<f32>>;
+@group(0) @binding(9) var<storage,read_write> phOut: array<f32>;
+@group(0) @binding(10) var<storage,read_write> acc: array<atomic<i32>>;
+fn dirOf(i:u32,p:vec2<f32>)->vec2<f32>{ if(P.mode==0u){ let d=tgt[i]-p; return d/max(length(d),1e-6);} return vec2<f32>(cos(phIn[i]),sin(phIn[i])); }
+@compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3<u32>){
   let i=g.x; if(i>=P.n){return;}
-  let p=posIn[i]; let di=dirOf(i,p); var f=vec2<f32>(0.0,0.0); var sinAcc=0.0; var cnt=0.0;
+  let p=posIn[i]; let di=dirOf(i,p); var f=vec2<f32>(0.0,0.0); var sinAcc=0.0; var cnt=0.0; var ex=0;
   let mind=P.ballR*2.0; let R=P.radius;
   let cx=clamp(i32(p.x/P.cell),0,i32(P.cols)-1); let cy=clamp(i32(p.y/P.cell),0,i32(P.rows)-1);
   for(var oy=-1;oy<=1;oy=oy+1){ let yy=cy+oy; if(yy<0||yy>=i32(P.rows)){continue;}
@@ -114,169 +138,225 @@ fn dirOf(i:u32,p:vec2<f32>)->vec2<f32>{ if(P.mode==0u){ let d=tgt[i]-p; return d
       let c=u32(yy)*P.cols+u32(xx); let cn=min(gc[c],P.cap);
       for(var s=0u;s<cn;s=s+1u){ let j=gi[c*P.cap+s]; if(j==i){continue;}
         let d=posIn[j]-p; let dist=length(d);
-        if(dist<mind && dist>1e-6){ f=f-(d/dist)*(mind-dist)*0.4; }
-        if(dist<R && dist>1e-6){ let mag=P.force*(1.0-dist/R); f=f+mag*di-mag*dirOf(j,posIn[j]);
+        if(dist<mind&&dist>1e-6){ f=f-(d/dist)*(mind-dist)*0.4; }
+        if(dist<R&&dist>1e-6){ let mag=P.force*(1.0-dist/R); f=f+mag*di-mag*dirOf(j,posIn[j]); ex=ex+1;
           if(P.mode==1u){ sinAcc=sinAcc+sin(phIn[j]-phIn[i]); cnt=cnt+1.0; } } } } }
-  var v=velIn[i]+f; v=v*P.damping; let sp=length(v); if(sp>P.maxV){ v=v*(P.maxV/sp); }
+  var v=velIn[i]+f; v=v*P.damping; let spd=length(v); if(spd>P.maxV){ v=v*(P.maxV/spd); }
   var np=p+v;
   if(np.x<P.ballR){np.x=P.ballR;v.x=-v.x*P.wall;} if(np.x>P.ww-P.ballR){np.x=P.ww-P.ballR;v.x=-v.x*P.wall;}
   if(np.y<P.ballR){np.y=P.ballR;v.y=-v.y*P.wall;} if(np.y>P.wh-P.ballR){np.y=P.wh-P.ballR;v.y=-v.y*P.wall;}
   posOut[i]=np; velOut[i]=v;
-  if(P.mode==1u){ var th=phIn[i]+P.omega; if(cnt>0.0){ th=th+P.coupling*(sinAcc/cnt); } phOut[i]=th; } else { phOut[i]=phIn[i]; }
-}`;
+  atomicAdd(&acc[2], ex);
+  if(P.mode==0u){ let dd=length(np-tgt[i]); atomicAdd(&acc[0], i32(dd*128.0)); phOut[i]=phIn[i]; }
+  else { var th=phIn[i]+P.omega; if(cnt>0.0){ th=th+P.coupling*(sinAcc/cnt); } phOut[i]=th;
+    atomicAdd(&acc[0], i32(cos(th)*10000.0)); atomicAdd(&acc[1], i32(sin(th)*10000.0)); } }`;
 
 const DENSIFY=RU+`
 @group(0) @binding(0) var<uniform> R: RU;
-@group(0) @binding(1) var<storage, read> pos: array<vec2<f32>>;
-@group(0) @binding(2) var<storage, read_write> dens: array<atomic<u32>>;
-@compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g: vec3<u32>){
-  let i=g.x; if(i>=R.n){return;}
-  let p=pos[i];
-  var cx=clamp(i32(p.x/R.ww*f32(R.dcols)),0,i32(R.dcols)-1);
-  var cy=clamp(i32(p.y/R.wh*f32(R.drows)),0,i32(R.drows)-1);
-  atomicAdd(&dens[u32(cy)*R.dcols+u32(cx)],1u);
-}`;
+@group(0) @binding(1) var<storage,read> pos: array<vec2<f32>>;
+@group(0) @binding(2) var<storage,read_write> dens: array<atomic<u32>>;
+@compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3<u32>){
+  let i=g.x; if(i>=R.n){return;} let p=pos[i];
+  var cx=clamp(i32(p.x/R.ww*f32(R.dcols)),0,i32(R.dcols)-1); var cy=clamp(i32(p.y/R.wh*f32(R.drows)),0,i32(R.drows)-1);
+  atomicAdd(&dens[u32(cy)*R.dcols+u32(cx)],1u); }`;
+
+const JINIT=JU+`
+@group(0) @binding(0) var<uniform> J: JU;
+@group(0) @binding(1) var<storage,read> dens: array<u32>;
+@group(0) @binding(2) var<storage,read_write> seed: array<u32>;
+@compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3<u32>){
+  let i=g.x; let tot=J.dcols*J.drows; if(i>=tot){return;}
+  if(dens[i]>0u){ seed[i]=i; } else { seed[i]=0xffffffffu; } }`;
+
+const JSTEP=JU+`
+@group(0) @binding(0) var<uniform> J: JU;
+@group(0) @binding(1) var<storage,read> sIn: array<u32>;
+@group(0) @binding(2) var<storage,read_write> sOut: array<u32>;
+@compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3<u32>){
+  let i=g.x; let tot=J.dcols*J.drows; if(i>=tot){return;}
+  let cx=i32(i%J.dcols); let cy=i32(i/J.dcols); let st=i32(J.step);
+  var best=sIn[i]; var bestD=3.0e9;
+  if(best!=0xffffffffu){ let sx=i32(best%J.dcols); let sy=i32(best/J.dcols); let dx=f32(cx-sx); let dy=f32(cy-sy); bestD=dx*dx+dy*dy; }
+  for(var oy=-1;oy<=1;oy=oy+1){ let ny=cy+oy*st; if(ny<0||ny>=i32(J.drows)){continue;}
+    for(var ox=-1;ox<=1;ox=ox+1){ let nx=cx+ox*st; if(nx<0||nx>=i32(J.dcols)){continue;}
+      let cand=sIn[u32(ny)*J.dcols+u32(nx)]; if(cand==0xffffffffu){continue;}
+      let sx=i32(cand%J.dcols); let sy=i32(cand/J.dcols); let dx=f32(cx-sx); let dy=f32(cy-sy); let dd=dx*dx+dy*dy;
+      if(dd<bestD){ bestD=dd; best=cand; } } }
+  sOut[i]=best; }`;
+
+const VREDUCE=JU+`
+@group(0) @binding(0) var<uniform> J: JU;
+@group(0) @binding(1) var<storage,read> seed: array<u32>;
+@group(0) @binding(2) var<storage,read_write> stat: array<atomic<u32>>;
+@compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3<u32>){
+  let i=g.x; let tot=J.dcols*J.drows; if(i>=tot){return;}
+  let cx=i32(i%J.dcols); let cy=i32(i/J.dcols); let s=seed[i]; var dist=J.ref*2.0;
+  if(s!=0xffffffffu){ let sx=i32(s%J.dcols); let sy=i32(s/J.dcols); dist=sqrt(f32((cx-sx)*(cx-sx)+(cy-sy)*(cy-sy))); }
+  let e=clamp(dist/J.ref,0.0,1.0); atomicAdd(&stat[0], u32(e*1000.0)); }`;
+
+const OVERLAP=RU+`
+@group(0) @binding(0) var<uniform> R: RU;
+@group(0) @binding(1) var<storage,read> pos: array<vec2<f32>>;
+@group(0) @binding(2) var<storage,read> seed: array<u32>;
+@group(0) @binding(3) var<storage,read_write> stat: array<atomic<u32>>;
+@compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3<u32>){
+  let i=g.x; if(i>=R.n){return;} let p=pos[i];
+  let cx=clamp(i32(p.x/R.ww*f32(R.dcols)),0,i32(R.dcols)-1); let cy=clamp(i32(p.y/R.wh*f32(R.drows)),0,i32(R.drows)-1);
+  let s=seed[u32(cy)*R.dcols+u32(cx)]; var dist=44.0;
+  if(s!=0xffffffffu){ let sx=i32(s%R.dcols); let sy=i32(s/R.dcols); dist=sqrt(f32((cx-sx)*(cx-sx)+(cy-sy)*(cy-sy))); }
+  let e=clamp(dist/22.0,0.0,1.0); atomicAdd(&stat[0], u32(e*1000.0)); }`;
 
 const PART=RU+`
 @group(0) @binding(0) var<uniform> R: RU;
-@group(0) @binding(1) var<storage, read> pos: array<vec2<f32>>;
+@group(0) @binding(1) var<storage,read> pos: array<vec2<f32>>;
 struct VO{ @builtin(position) clip:vec4<f32>, @location(0) col:vec3<f32> };
 fn hsv(h:f32,s:f32,v:f32)->vec3<f32>{ let k=vec3<f32>(1.0,2.0/3.0,1.0/3.0); let pp=abs(fract(vec3<f32>(h)+k)*6.0-3.0); return v*mix(vec3<f32>(1.0),clamp(pp-1.0,vec3<f32>(0.0),vec3<f32>(1.0)),s); }
-@vertex fn vs(@builtin(vertex_index) vi:u32, @builtin(instance_index) ii:u32)->VO{
+@vertex fn vs(@builtin(vertex_index) vi:u32,@builtin(instance_index) ii:u32)->VO{
   var cr=array<vec2<f32>,6>(vec2<f32>(-1.0,-1.0),vec2<f32>(1.0,-1.0),vec2<f32>(-1.0,1.0),vec2<f32>(-1.0,1.0),vec2<f32>(1.0,-1.0),vec2<f32>(1.0,1.0));
   let world=pos[ii]+cr[vi]*R.pointSize;
-  var o:VO; o.clip=vec4<f32>(world.x/R.ww*2.0-1.0, 1.0-world.y/R.wh*2.0, 0.0,1.0);
-  o.col=hsv(fract(f32(ii)*0.61803399),0.72,0.95); return o;
-}
+  var o:VO; o.clip=vec4<f32>(world.x/R.ww*2.0-1.0,1.0-world.y/R.wh*2.0,0.0,1.0);
+  o.col=hsv(fract(f32(ii)*0.61803399),0.72,0.95); return o; }
 @fragment fn fs(i:VO)->@location(0) vec4<f32>{ return vec4<f32>(i.col,1.0); }`;
 
 const HEAT=RU+`
 @group(0) @binding(0) var<uniform> R: RU;
-@group(0) @binding(1) var<storage, read> dens: array<u32>;
+@group(0) @binding(1) var<storage,read> seed: array<u32>;
 struct VO{ @builtin(position) clip:vec4<f32>, @location(0) uv:vec2<f32> };
 @vertex fn vs(@builtin(vertex_index) vi:u32)->VO{
   var q=array<vec2<f32>,6>(vec2<f32>(-1.0,-1.0),vec2<f32>(1.0,-1.0),vec2<f32>(-1.0,1.0),vec2<f32>(-1.0,1.0),vec2<f32>(1.0,-1.0),vec2<f32>(1.0,1.0));
-  let p=q[vi]; var o:VO; o.clip=vec4<f32>(p,0.0,1.0); o.uv=vec2<f32>((p.x+1.0)*0.5,(1.0-p.y)*0.5); return o;
-}
+  let p=q[vi]; var o:VO; o.clip=vec4<f32>(p,0.0,1.0); o.uv=vec2<f32>((p.x+1.0)*0.5,(1.0-p.y)*0.5); return o; }
 @fragment fn fs(i:VO)->@location(0) vec4<f32>{
-  let cx=clamp(i32(i.uv.x*f32(R.dcols)),0,i32(R.dcols)-1);
-  let cy=clamp(i32(i.uv.y*f32(R.drows)),0,i32(R.drows)-1);
-  let d=f32(dens[u32(cy)*R.dcols+u32(cx)]);
-  let avg=f32(R.n)/(f32(R.dcols)*f32(R.drows));
-  let thresh=max(1.0, avg*1.6);
-  var e=clamp(1.0-d/thresh,0.0,1.0); e=pow(e,3.0/R.intensity);
-  return vec4<f32>(0.37*e,0.88*e,0.75*e,1.0);
-}`;
+  let cx=clamp(i32(i.uv.x*f32(R.dcols)),0,i32(R.dcols)-1); let cy=clamp(i32(i.uv.y*f32(R.drows)),0,i32(R.drows)-1);
+  let s=seed[u32(cy)*R.dcols+u32(cx)]; var dist=44.0;
+  if(s!=0xffffffffu){ let sx=i32(s%R.dcols); let sy=i32(s/R.dcols); dist=sqrt(f32((cx-sx)*(cx-sx)+(cy-sy)*(cy-sy))); }
+  var e=clamp(dist/22.0,0.0,1.0); e=pow(e,3.0/R.intensity);
+  return vec4<f32>(0.37*e,0.88*e,0.75*e,1.0); }`;
 
-let device, ctx, format, physBuf=[], ruBuf, gcBuf, giBuf;
-let pos=[[],[]], vel=[[],[]], ph=[[],[]], tgt=[], densBuf=[];
-let buildPipe, simPipe, densPipe, partPipe, heatPipe;
-let buildBG=[[],[]], simBG=[[],[]], densBG=[[],[]], partBG=[[],[]], heatBG=[];
-let cur=0, grid={cols:1,rows:1,cell:16};
-const physAB=[new ArrayBuffer(64),new ArrayBuffer(64)];
-const ruAB=new ArrayBuffer(32);
+let device,ctx,format;
+let physBuf=[],ruBuf,juBuf=[],gcBuf,giBuf;
+let pos=[[],[]],vel=[[],[]],ph=[[],[]],tgt=[],densBuf=[],seedBuf=[[],[]],accBuf=[],vstatBuf=[],ovBuf;
+let pipes={}, BG={};
+let cur=0,grid={cols:1,rows:1,cell:16};
+const physAB=[new ArrayBuffer(64),new ArrayBuffer(64)], ruAB=new ArrayBuffer(32);
+let stag=[], mapping=false;
 
 async function initGPU(){
-  if(!('gpu' in navigator)){ fail("Browser senza WebGPU. Usa Chrome/Edge recenti."); return false; }
+  if(!('gpu' in navigator)){ fail("Browser senza WebGPU (usa Chrome/Edge recenti)."); return false; }
   const adapter=await navigator.gpu.requestAdapter({powerPreference:'high-performance'});
   if(!adapter){ fail("Nessun adapter GPU."); return false; }
   const maxSB=adapter.limits.maxStorageBuffersPerShaderStage;
-  if(maxSB<10){ fail("La GPU/driver espone solo "+maxSB+" storage buffer per stage (ne servono 10)."); return false; }
-  device=await adapter.requestDevice({ requiredLimits:{ maxStorageBuffersPerShaderStage:Math.min(16,maxSB) } });
-  device.lost.then(i=>fail("Device perso: "+i.message));
-  device.addEventListener('uncapturederror',e=>fail("Errore GPU: "+e.error.message));
+  if(maxSB<11){ fail("GPU/driver: solo "+maxSB+" storage buffer per stage (ne servono 11)."); return false; }
+  device=await adapter.requestDevice({requiredLimits:{maxStorageBuffersPerShaderStage:Math.min(16,maxSB)}});
+  device.lost.then(i=>fail("Device perso: "+i.message)); device.addEventListener('uncapturederror',e=>fail("Errore GPU: "+e.error.message));
   try{ document.getElementById('gpuName').textContent=(adapter.info&&(adapter.info.description||adapter.info.vendor))||'GPU'; }catch(e){}
-  ctx=cv.getContext('webgpu'); format=navigator.gpu.getPreferredCanvasFormat();
-  ctx.configure({device,format,alphaMode:'opaque'});
+  ctx=cv.getContext('webgpu'); format=navigator.gpu.getPreferredCanvasFormat(); ctx.configure({device,format,alphaMode:'opaque'});
   const U=GPUBufferUsage, S=(sz,u)=>device.createBuffer({size:sz,usage:u});
-  physBuf=[S(64,U.UNIFORM|U.COPY_DST),S(64,U.UNIFORM|U.COPY_DST)];
-  ruBuf=S(32,U.UNIFORM|U.COPY_DST);
-  gcBuf=S(NCELLS_MAX*4,U.STORAGE|U.COPY_DST); giBuf=S(NCELLS_MAX*CAP*4,U.STORAGE);
-  for(let s=0;s<2;s++){
-    pos[s]=[S(MAXN*8,U.STORAGE|U.COPY_DST),S(MAXN*8,U.STORAGE|U.COPY_DST)];
-    vel[s]=[S(MAXN*8,U.STORAGE|U.COPY_DST),S(MAXN*8,U.STORAGE|U.COPY_DST)];
-    ph[s]=[S(MAXN*4,U.STORAGE|U.COPY_DST),S(MAXN*4,U.STORAGE|U.COPY_DST)];
-    tgt[s]=S(MAXN*8,U.STORAGE|U.COPY_DST);
-    densBuf[s]=S(NDENS*4,U.STORAGE|U.COPY_DST);
-  }
+  physBuf=[S(64,U.UNIFORM|U.COPY_DST),S(64,U.UNIFORM|U.COPY_DST)]; ruBuf=S(32,U.UNIFORM|U.COPY_DST);
+  for(let k=0;k<STEPS.length;k++){ const b=S(16,U.UNIFORM|U.COPY_DST); const ab=new ArrayBuffer(16),u=new Uint32Array(ab),f=new Float32Array(ab); u[0]=STEPS[k];u[1]=DCOLS;u[2]=DROWS;f[3]=REF; device.queue.writeBuffer(b,0,ab); juBuf.push(b); }
+  juBuf.initB=S(16,U.UNIFORM|U.COPY_DST); { const ab=new ArrayBuffer(16),u=new Uint32Array(ab),f=new Float32Array(ab); u[0]=1;u[1]=DCOLS;u[2]=DROWS;f[3]=REF; device.queue.writeBuffer(juBuf.initB,0,ab); }
+  gcBuf=S(NCM*4,U.STORAGE|U.COPY_DST); giBuf=S(NCM*CAP*4,U.STORAGE);
+  for(let s=0;s<2;s++){ pos[s]=[S(MAXN*8,U.STORAGE|U.COPY_DST),S(MAXN*8,U.STORAGE|U.COPY_DST)]; vel[s]=[S(MAXN*8,U.STORAGE|U.COPY_DST),S(MAXN*8,U.STORAGE|U.COPY_DST)]; ph[s]=[S(MAXN*4,U.STORAGE|U.COPY_DST),S(MAXN*4,U.STORAGE|U.COPY_DST)]; tgt[s]=S(MAXN*8,U.STORAGE|U.COPY_DST); densBuf[s]=S(NDENS*4,U.STORAGE|U.COPY_DST); seedBuf[s]=[S(NDENS*4,U.STORAGE),S(NDENS*4,U.STORAGE)]; accBuf[s]=S(16,U.STORAGE|U.COPY_DST|U.COPY_SRC); vstatBuf[s]=S(8,U.STORAGE|U.COPY_DST|U.COPY_SRC); }
+  ovBuf=S(8,U.STORAGE|U.COPY_DST|U.COPY_SRC);
+  for(let k=0;k<3;k++) stag.push(S(64,U.COPY_DST|U.MAP_READ));
   const sm=c=>device.createShaderModule({code:c});
-  buildPipe=device.createComputePipeline({layout:'auto',compute:{module:sm(BUILD),entryPoint:'main'}});
-  simPipe=device.createComputePipeline({layout:'auto',compute:{module:sm(SIM),entryPoint:'main'}});
-  densPipe=device.createComputePipeline({layout:'auto',compute:{module:sm(DENSIFY),entryPoint:'main'}});
-  const pm=sm(PART), hm=sm(HEAT);
-  partPipe=device.createRenderPipeline({layout:'auto',vertex:{module:pm,entryPoint:'vs'},fragment:{module:pm,entryPoint:'fs',targets:[{format}]},primitive:{topology:'triangle-list'}});
-  heatPipe=device.createRenderPipeline({layout:'auto',vertex:{module:hm,entryPoint:'vs'},fragment:{module:hm,entryPoint:'fs',targets:[{format}]},primitive:{topology:'triangle-list'}});
-  const bg=(pl,ent)=>device.createBindGroup({layout:pl.getBindGroupLayout(0),entries:ent});
+  pipes.build=device.createComputePipeline({layout:'auto',compute:{module:sm(BUILD),entryPoint:'main'}});
+  pipes.sim=device.createComputePipeline({layout:'auto',compute:{module:sm(SIM),entryPoint:'main'}});
+  pipes.dens=device.createComputePipeline({layout:'auto',compute:{module:sm(DENSIFY),entryPoint:'main'}});
+  pipes.jinit=device.createComputePipeline({layout:'auto',compute:{module:sm(JINIT),entryPoint:'main'}});
+  pipes.jstep=device.createComputePipeline({layout:'auto',compute:{module:sm(JSTEP),entryPoint:'main'}});
+  pipes.vred=device.createComputePipeline({layout:'auto',compute:{module:sm(VREDUCE),entryPoint:'main'}});
+  pipes.ov=device.createComputePipeline({layout:'auto',compute:{module:sm(OVERLAP),entryPoint:'main'}});
+  pipes.part=device.createRenderPipeline({layout:'auto',vertex:{module:sm(PART),entryPoint:'vs'},fragment:{module:sm(PART),entryPoint:'fs',targets:[{format}]},primitive:{topology:'triangle-list'}});
+  pipes.heat=device.createRenderPipeline({layout:'auto',vertex:{module:sm(HEAT),entryPoint:'vs'},fragment:{module:sm(HEAT),entryPoint:'fs',targets:[{format}]},primitive:{topology:'triangle-list'}});
+  const bg=(pl,e)=>device.createBindGroup({layout:pl.getBindGroupLayout(0),entries:e});
+  BG.build=[[],[]];BG.sim=[[],[]];BG.dens=[[],[]];BG.part=[[],[]];BG.heat=[];BG.jinit=[];BG.jstep=[[],[]];BG.vred=[];BG.ov=[];
   for(let s=0;s<2;s++)for(let c=0;c<2;c++){
-    buildBG[s][c]=bg(buildPipe,[{binding:0,resource:{buffer:physBuf[s]}},{binding:1,resource:{buffer:pos[s][c]}},{binding:2,resource:{buffer:gcBuf}},{binding:3,resource:{buffer:giBuf}}]);
-    simBG[s][c]=bg(simPipe,[{binding:0,resource:{buffer:physBuf[s]}},{binding:1,resource:{buffer:pos[s][c]}},{binding:2,resource:{buffer:vel[s][c]}},{binding:3,resource:{buffer:ph[s][c]}},{binding:4,resource:{buffer:tgt[s]}},{binding:5,resource:{buffer:gcBuf}},{binding:6,resource:{buffer:giBuf}},{binding:7,resource:{buffer:pos[s][1-c]}},{binding:8,resource:{buffer:vel[s][1-c]}},{binding:9,resource:{buffer:ph[s][1-c]}}]);
-    densBG[s][c]=bg(densPipe,[{binding:0,resource:{buffer:ruBuf}},{binding:1,resource:{buffer:pos[s][1-c]}},{binding:2,resource:{buffer:densBuf[s]}}]);
-    partBG[s][c]=bg(partPipe,[{binding:0,resource:{buffer:ruBuf}},{binding:1,resource:{buffer:pos[s][1-c]}}]);
+    BG.build[s][c]=bg(pipes.build,[{binding:0,resource:{buffer:physBuf[s]}},{binding:1,resource:{buffer:pos[s][c]}},{binding:2,resource:{buffer:gcBuf}},{binding:3,resource:{buffer:giBuf}}]);
+    BG.sim[s][c]=bg(pipes.sim,[{binding:0,resource:{buffer:physBuf[s]}},{binding:1,resource:{buffer:pos[s][c]}},{binding:2,resource:{buffer:vel[s][c]}},{binding:3,resource:{buffer:ph[s][c]}},{binding:4,resource:{buffer:tgt[s]}},{binding:5,resource:{buffer:gcBuf}},{binding:6,resource:{buffer:giBuf}},{binding:7,resource:{buffer:pos[s][1-c]}},{binding:8,resource:{buffer:vel[s][1-c]}},{binding:9,resource:{buffer:ph[s][1-c]}},{binding:10,resource:{buffer:accBuf[s]}}]);
+    BG.dens[s][c]=bg(pipes.dens,[{binding:0,resource:{buffer:ruBuf}},{binding:1,resource:{buffer:pos[s][1-c]}},{binding:2,resource:{buffer:densBuf[s]}}]);
+    BG.part[s][c]=bg(pipes.part,[{binding:0,resource:{buffer:ruBuf}},{binding:1,resource:{buffer:pos[s][1-c]}}]);
   }
-  heatBG=[ bg(heatPipe,[{binding:0,resource:{buffer:ruBuf}},{binding:1,resource:{buffer:densBuf[0]}}]),
-           bg(heatPipe,[{binding:0,resource:{buffer:ruBuf}},{binding:1,resource:{buffer:densBuf[1]}}]) ];
+  for(let s=0;s<2;s++){
+    BG.jinit[s]=bg(pipes.jinit,[{binding:0,resource:{buffer:juBuf.initB}},{binding:1,resource:{buffer:densBuf[s]}},{binding:2,resource:{buffer:seedBuf[s][0]}}]);
+    BG.jstep[s]=[]; for(let k=0;k<STEPS.length;k++){ const inb=seedBuf[s][k%2], outb=seedBuf[s][1-(k%2)]; BG.jstep[s].push(bg(pipes.jstep,[{binding:0,resource:{buffer:juBuf[k]}},{binding:1,resource:{buffer:inb}},{binding:2,resource:{buffer:outb}}])); }
+    BG.vred[s]=bg(pipes.vred,[{binding:0,resource:{buffer:juBuf.initB}},{binding:1,resource:{buffer:seedBuf[s][0]}},{binding:2,resource:{buffer:vstatBuf[s]}}]);
+    BG.heat[s]=bg(pipes.heat,[{binding:0,resource:{buffer:ruBuf}},{binding:1,resource:{buffer:seedBuf[s][0]}}]);
+  }
+  BG.ov=bg(pipes.ov,[{binding:0,resource:{buffer:ruBuf}},{binding:1,resource:{buffer:pos[0][0]}},{binding:2,resource:{buffer:seedBuf[1][0]}},{binding:3,resource:{buffer:ovBuf}}]); // rebuilt each frame (pos depends on cur)
   return true;
 }
 
-function reset(){
-  const N=P.N;
-  for(let s=0;s<2;s++){
-    const po=new Float32Array(N*2), vl=new Float32Array(N*2), pha=new Float32Array(N), tg=new Float32Array(N*2);
-    for(let i=0;i<N;i++){ po[i*2]=Math.random()*PW; po[i*2+1]=Math.random()*PH; tg[i*2]=Math.random()*PW; tg[i*2+1]=Math.random()*PH; pha[i]=Math.random()*6.2832; }
-    device.queue.writeBuffer(pos[s][0],0,po,0,N*2); device.queue.writeBuffer(vel[s][0],0,vl,0,N*2);
-    device.queue.writeBuffer(ph[s][0],0,pha,0,N); device.queue.writeBuffer(tgt[s],0,tg,0,N*2);
-  }
-  cur=0;
+function reset(){ const N=P.N;
+  for(let s=0;s<2;s++){ const po=new Float32Array(N*2),vl=new Float32Array(N*2),pa=new Float32Array(N),tg=new Float32Array(N*2);
+    for(let i=0;i<N;i++){ po[i*2]=Math.random()*PW; po[i*2+1]=Math.random()*PH; tg[i*2]=Math.random()*PW; tg[i*2+1]=Math.random()*PH; pa[i]=Math.random()*6.2832; }
+    device.queue.writeBuffer(pos[s][0],0,po,0,N*2); device.queue.writeBuffer(vel[s][0],0,vl,0,N*2); device.queue.writeBuffer(ph[s][0],0,pa,0,N); device.queue.writeBuffer(tgt[s],0,tg,0,N*2); }
+  cur=0; hist.forEach(h=>h.length=0);
 }
-
-function writePhys(){
+function writeUniforms(){
   grid.cell=Math.max(P.R,CELL_MIN); grid.cols=Math.max(1,Math.ceil(PW/grid.cell)); grid.rows=Math.max(1,Math.ceil(PH/grid.cell));
-  for(let s=0;s<2;s++){
-    const u=new Uint32Array(physAB[s]), f=new Float32Array(physAB[s]);
-    u[0]=P.N; u[1]=grid.cols; u[2]=grid.rows; u[3]=CAP;
-    f[4]=PW; f[5]=PH; f[6]=grid.cell; f[7]=P.R;
-    f[8]=P.ballR; f[9]=P.F; f[10]=P.K; f[11]=1-P.D; f[12]=P.maxV; f[13]=P.wall; f[14]=P.omega; u[15]=s;
-    device.queue.writeBuffer(physBuf[s],0,physAB[s]);
-  }
-  const u=new Uint32Array(ruAB), f=new Float32Array(ruAB);
-  f[0]=PW; f[1]=PH; u[2]=DCOLS; u[3]=DROWS; f[4]=PW/DCOLS; f[5]=P.ballR*1.4; u[6]=P.N; f[7]=P.V;
-  device.queue.writeBuffer(ruBuf,0,ruAB);
+  for(let s=0;s<2;s++){ const u=new Uint32Array(physAB[s]),f=new Float32Array(physAB[s]);
+    u[0]=P.N;u[1]=grid.cols;u[2]=grid.rows;u[3]=CAP;f[4]=PW;f[5]=PH;f[6]=grid.cell;f[7]=P.R;f[8]=P.ballR;f[9]=P.F;f[10]=P.K;f[11]=1-P.D;f[12]=P.maxV;f[13]=P.wall;f[14]=P.omega;u[15]=s; device.queue.writeBuffer(physBuf[s],0,physAB[s]); }
+  const u=new Uint32Array(ruAB),f=new Float32Array(ruAB); f[0]=PW;f[1]=PH;u[2]=DCOLS;u[3]=DROWS;f[4]=PW/DCOLS;f[5]=P.ballR*1.4;u[6]=P.N;f[7]=P.V; device.queue.writeBuffer(ruBuf,0,ruAB);
 }
+function drawSpark(g,arr,color){ const c=g.canvas; g.clearRect(0,0,c.width,c.height); if(arr.length<2)return; let mx=-1e9,mn=1e9; for(const v of arr){ if(v>mx)mx=v; if(v<mn)mn=v; } const rng=(mx-mn)||1,w=c.width,h=c.height; g.strokeStyle=color; g.lineWidth=1.5; g.beginPath(); for(let i=0;i<arr.length;i++){ const x=i/(arr.length-1)*w,y=h-4-(arr[i]-mn)/rng*(h-8); i?g.lineTo(x,y):g.moveTo(x,y);} g.stroke(); }
 
-let frames=0, fpsT=0;
+let frames=0,fpsT=0;
 function frame(t){
-  if(P.running && device){
-    writePhys();
-    const N=P.N, wg=Math.ceil(N/64), ncell=grid.cols*grid.rows;
+  if(P.running&&device){
+    writeUniforms();
+    const N=P.N, wg=Math.ceil(N/64), wgc=Math.ceil(NDENS/64), ncell=grid.cols*grid.rows;
+    // overlap BG dipende da cur (pos[0][1-cur])
+    BG.ov=device.createBindGroup({layout:pipes.ov.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:ruBuf}},{binding:1,resource:{buffer:pos[0][1-cur]}},{binding:2,resource:{buffer:seedBuf[1][0]}},{binding:3,resource:{buffer:ovBuf}}]});
     const enc=device.createCommandEncoder();
-    for(let s=0;s<2;s++){
-      enc.clearBuffer(gcBuf,0,ncell*4);
-      let p=enc.beginComputePass(); p.setPipeline(buildPipe); p.setBindGroup(0,buildBG[s][cur]); p.dispatchWorkgroups(wg); p.end();
-      p=enc.beginComputePass(); p.setPipeline(simPipe); p.setBindGroup(0,simBG[s][cur]); p.dispatchWorkgroups(wg); p.end();
-    }
-    for(let s=0;s<2;s++){
-      enc.clearBuffer(densBuf[s],0,NDENS*4);
-      let p=enc.beginComputePass(); p.setPipeline(densPipe); p.setBindGroup(0,densBG[s][cur]); p.dispatchWorkgroups(wg); p.end();
-    }
+    for(let s=0;s<2;s++){ enc.clearBuffer(accBuf[s]); }
+    enc.clearBuffer(ovBuf);
+    // fisica
+    for(let s=0;s<2;s++){ enc.clearBuffer(gcBuf,0,ncell*4);
+      let p=enc.beginComputePass();p.setPipeline(pipes.build);p.setBindGroup(0,BG.build[s][cur]);p.dispatchWorkgroups(wg);p.end();
+      p=enc.beginComputePass();p.setPipeline(pipes.sim);p.setBindGroup(0,BG.sim[s][cur]);p.dispatchWorkgroups(wg);p.end(); }
+    // vuoti: densità → jfa init → 8 step → reduce
+    for(let s=0;s<2;s++){ enc.clearBuffer(densBuf[s]); enc.clearBuffer(vstatBuf[s]);
+      let p=enc.beginComputePass();p.setPipeline(pipes.dens);p.setBindGroup(0,BG.dens[s][cur]);p.dispatchWorkgroups(wg);p.end();
+      p=enc.beginComputePass();p.setPipeline(pipes.jinit);p.setBindGroup(0,BG.jinit[s]);p.dispatchWorkgroups(wgc);p.end();
+      for(let k=0;k<STEPS.length;k++){ p=enc.beginComputePass();p.setPipeline(pipes.jstep);p.setBindGroup(0,BG.jstep[s][k]);p.dispatchWorkgroups(wgc);p.end(); }
+      p=enc.beginComputePass();p.setPipeline(pipes.vred);p.setBindGroup(0,BG.vred[s]);p.dispatchWorkgroups(wgc);p.end(); }
+    // overlap: S1 particelle vs vuoti S2 (seedBuf[1][0])
+    { let p=enc.beginComputePass();p.setPipeline(pipes.ov);p.setBindGroup(0,BG.ov);p.dispatchWorkgroups(wg);p.end(); }
+    // render 4 pannelli
     const view=ctx.getCurrentTexture().createView();
     const rp=enc.beginRenderPass({colorAttachments:[{view,clearValue:{r:0.031,g:0.039,b:0.059,a:1},loadOp:'clear',storeOp:'store'}]});
-    rp.setViewport(0,PANY[0],PW,PH,0,1); rp.setPipeline(partPipe); rp.setBindGroup(0,partBG[0][cur]); rp.draw(6,N);
-    rp.setViewport(0,PANY[1],PW,PH,0,1); rp.setBindGroup(0,partBG[1][cur]); rp.draw(6,N);
-    rp.setViewport(0,PANY[2],PW,PH,0,1); rp.setPipeline(heatPipe); rp.setBindGroup(0,heatBG[1]); rp.draw(6,1);
-    rp.setViewport(0,PANY[3],PW,PH,0,1); rp.setBindGroup(0,heatBG[0]); rp.draw(6,1);
+    rp.setViewport(0,PANY[0],PW,PH,0,1);rp.setPipeline(pipes.part);rp.setBindGroup(0,BG.part[0][cur]);rp.draw(6,N);
+    rp.setViewport(0,PANY[1],PW,PH,0,1);rp.setBindGroup(0,BG.part[1][cur]);rp.draw(6,N);
+    rp.setViewport(0,PANY[2],PW,PH,0,1);rp.setPipeline(pipes.heat);rp.setBindGroup(0,BG.heat[1]);rp.draw(6,1);
+    rp.setViewport(0,PANY[3],PW,PH,0,1);rp.setBindGroup(0,BG.heat[0]);rp.draw(6,1);
     rp.end();
+    // readback metriche (non bloccante)
+    let sb=null; if(!mapping){ sb=stag.find(b=>b.mapState==='unmapped'); }
+    if(sb){ enc.copyBufferToBuffer(accBuf[0],0,sb,0,16); enc.copyBufferToBuffer(accBuf[1],0,sb,16,16); enc.copyBufferToBuffer(vstatBuf[0],0,sb,32,8); enc.copyBufferToBuffer(vstatBuf[1],0,sb,40,8); enc.copyBufferToBuffer(ovBuf,0,sb,48,8); }
     device.queue.submit([enc.finish()]);
+    if(sb){ mapping=true; sb.mapAsync(GPUMapMode.READ).then(()=>{ const dv=new DataView(sb.getMappedRange().slice(0));
+      const a1=[dv.getInt32(0,true),dv.getInt32(4,true),dv.getInt32(8,true)]; const a2=[dv.getInt32(16,true),dv.getInt32(20,true),dv.getInt32(24,true)];
+      const vs1=dv.getUint32(32,true), vs2=dv.getUint32(40,true), ov=dv.getUint32(48,true);
+      sb.unmap(); mapping=false;
+      const N=P.N; const dist=a1[0]/128.0/N; const ex1=Math.round(a1[2]/2);
+      const sync=Math.hypot(a2[0]/10000.0/N, a2[1]/10000.0/N);
+      const vm1=vs1/1000.0/NDENS, vm2=vs2/1000.0/NDENS, overlap=ov/1000.0/N;
+      document.getElementById('mDist').textContent=dist.toFixed(1); document.getElementById('mEx1').textContent=ex1;
+      document.getElementById('mSync').textContent=sync.toFixed(2); document.getElementById('mOv').textContent=overlap.toFixed(3);
+      document.getElementById('mV1').textContent=vm1.toFixed(3); document.getElementById('mV2').textContent=vm2.toFixed(3);
+      document.getElementById('mCount').textContent=(N>=1000?(N/1000).toFixed(0)+'k':N);
+      hist[0].push(ex1); hist[1].push(sync); hist[2].push(overlap); hist[3].push(vm1); hist[4].push(vm2);
+      hist.forEach(h=>{ if(h.length>330)h.shift(); });
+    }).catch(()=>{ mapping=false; }); }
     cur=1-cur;
   }
-  frames++; if(t-fpsT>500){ document.getElementById('fps').textContent=Math.round(frames*1000/(t-fpsT)); frames=0; fpsT=t; }
+  drawSpark(sp[0],hist[0],'#ffb14e'); drawSpark(sp[1],hist[1],'#ffb14e'); drawSpark(sp[2],hist[2],'#c88bff'); drawSpark(sp[3],hist[3],'#5ee0c0');
+  frames++; if(t-fpsT>500){ document.getElementById('fps').textContent=Math.round(frames*1000/(t-fpsT))+' fps'; frames=0; fpsT=t; }
   requestAnimationFrame(frame);
 }
 
 function fmtN(n){ return n>=1000?(n/1000).toFixed(n>=100000?0:1)+'k':n; }
-function syncLabels(){ document.getElementById('vN').textContent=fmtN(P.N); document.getElementById('vF').textContent=P.F.toFixed(2);
-  document.getElementById('vD').textContent=P.D.toFixed(2); document.getElementById('vR').textContent=P.R;
-  document.getElementById('vK').textContent=P.K.toFixed(2); document.getElementById('vV').textContent=P.V.toFixed(1);
-  document.getElementById('mCount').textContent=fmtN(P.N); }
+function syncLabels(){ document.getElementById('vN').textContent=fmtN(P.N); document.getElementById('vF').textContent=P.F.toFixed(2); document.getElementById('vD').textContent=P.D.toFixed(2); document.getElementById('vR').textContent=P.R; document.getElementById('vK').textContent=P.K.toFixed(2); document.getElementById('vV').textContent=P.V.toFixed(1); document.getElementById('mCount').textContent=fmtN(P.N); }
 document.getElementById('sN').oninput=e=>{ P.N=+e.target.value; syncLabels(); reset(); };
 document.getElementById('sF').oninput=e=>{ P.F=+e.target.value/100; syncLabels(); };
 document.getElementById('sD').oninput=e=>{ P.D=+e.target.value/100; syncLabels(); };
