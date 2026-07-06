@@ -162,7 +162,9 @@ struct VO{ @builtin(position) clip:vec4<f32>, @location(0) uv:vec2<f32> };
   let cx=clamp(i32(i.uv.x*f32(R.dcols)),0,i32(R.dcols)-1);
   let cy=clamp(i32(i.uv.y*f32(R.drows)),0,i32(R.drows)-1);
   let d=f32(dens[u32(cy)*R.dcols+u32(cx)]);
-  var e=clamp(1.0-d/2.0,0.0,1.0); e=pow(e,2.0/R.intensity); e=e*e;
+  let avg=f32(R.n)/(f32(R.dcols)*f32(R.drows));
+  let thresh=max(1.0, avg*1.6);
+  var e=clamp(1.0-d/thresh,0.0,1.0); e=pow(e,3.0/R.intensity);
   return vec4<f32>(0.37*e,0.88*e,0.75*e,1.0);
 }`;
 
