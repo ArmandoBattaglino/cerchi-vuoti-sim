@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Motore GPU (WebGPU) — particelle di massa</title>
+<style>
+  :root{ --bg:#0b0d12; --panel:#141821; --ink:#e7ecf3; --dim:#8a93a6; --accent:#5ee0c0; --line:#232a37; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink);
+        font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  .wrap{ max-width:1220px; margin:0 auto; padding:20px; display:grid; grid-template-columns:900px 1fr; gap:22px; align-items:start; }
+  @media(max-width:1240px){ .wrap{ grid-template-columns:1fr; } }
+  h1{ font-size:17px; margin:0 0 4px; font-weight:650; }
+  .sub{ color:var(--dim); margin:0 0 12px; font-size:13px; }
+  canvas#cv{ background:#05070b; border:1px solid var(--line); border-radius:12px; display:block; width:900px; height:640px; }
+  @media(max-width:1240px){ canvas#cv{ width:100%; height:auto; aspect-ratio:900/640; } }
+  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 18px; position:sticky; top:16px; }
+  .row{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin:11px 0; }
+  .row label{ color:var(--dim); }
+  .row .val{ color:var(--accent); font-variant-numeric:tabular-nums; min-width:70px; text-align:right; }
+  input[type=range]{ width:180px; accent-color:var(--accent); }
+  .seg{ display:flex; gap:6px; margin:10px 0; }
+  .seg button{ flex:1; background:#1b2130; color:var(--dim); border:1px solid var(--line); border-radius:8px; padding:7px; cursor:pointer; font-size:13px; }
+  .seg button.on{ background:var(--accent); color:#04120e; border-color:var(--accent); font-weight:650; }
+  .btns{ display:flex; gap:10px; margin-top:13px; }
+  button{ flex:1; background:#1b2130; color:var(--ink); border:1px solid var(--line); border-radius:9px; padding:9px 12px; font-size:14px; cursor:pointer; }
+  button:hover{ background:#232c3d; }
+  button.primary{ background:var(--accent); color:#04120e; border-color:var(--accent); font-weight:650; }
+  .stat{ margin-top:14px; padding-top:12px; border-top:1px solid var(--line); color:var(--dim); font-size:13px; }
+  .stat b{ color:var(--accent); font-variant-numeric:tabular-nums; }
+  .err{ background:#2a1418; border:1px solid #5a2530; color:#ffb4b4; border-radius:10px; padding:14px; margin-top:10px; display:none; font-size:13px; }
+  .hint{ margin-top:13px; font-size:12.5px; color:var(--dim); line-height:1.55; } .hint b{ color:var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <h1>Motore GPU (WebGPU) — particelle di massa</h1>
+    <p class="sub">Fisica in compute shader sulla GPU. Punta a centinaia di migliaia / milioni di particelle.</p>
+    <canvas id="cv" width="900" height="640"></canvas>
+    <div class="err" id="err"></div>
+  </div>
+
+  <div class="panel">
+    <div class="row"><label>Particelle</label><input id="sN" type="range" min="2000" max="1000000" step="2000" value="120000"><span class="val" id="vN">120k</span></div>
+    <div class="row"><label>Forza della spinta</label><input id="sF" type="range" min="1" max="40" value="8"><span class="val" id="vF">0.08</span></div>
+    <div class="row"><label>Attrito</label><input id="sD" type="range" min="0" max="40" value="8"><span class="val" id="vD">0.08</span></div>
+    <div class="row"><label>Raggio d'interazione</label><input id="sR" type="range" min="6" max="48" value="16"><span class="val" id="vR">16</span></div>
+    <div class="row"><label>Accoppiamento (freq)</label><input id="sK" type="range" min="0" max="30" value="10"><span class="val" id="vK">0.10</span></div>
+
+    <div class="seg">
+      <button id="mGoal" class="on">Obiettivi</button>
+      <button id="mFreq">Frequenza</button>
+    </div>
+
+    <div class="btns">
+      <button id="bPlay" class="primary">Pausa</button>
+      <button id="bReset">Rigenera</button>
+    </div>
+
+    <div class="stat">
+      In gioco: <b id="mCount">—</b> · <b id="fps">—</b> fps · GPU: <b id="gpuName" style="color:var(--dim)">—</b>
+    </div>
+
+    <div class="err" id="err2"></div>
+
+    <p class="hint">
+      <b>Obiettivi:</b> ogni particella ha una meta fissa e rincula spingendo gli altri.
+      <b>Frequenza:</b> nessuna meta, fasi accoppiate (Kuramoto) → sincronia/flocking.
+      Raggio piccolo = più veloce e più struttura. Serve un browser con <b>WebGPU</b> (Chrome/Edge recenti).
+    </p>
+  </div>
+</div>
+
+<script type="module">
+const cv = document.getElementById('cv');
+const errBox = document.getElementById('err');
+function fail(msg){ errBox.style.display='block'; errBox.textContent = msg; console.error(msg); }
+
+const WW = 900, WH = 640;
+const MAXN = 1000000;
+const CAP = 48;                 // capacità per cella (overflow ignorato)
+const CELL_MIN = 12;            // cella minima → limita numero celle
+const COLS_MAX = Math.ceil(WW/CELL_MIN), ROWS_MAX = Math.ceil(WH/CELL_MIN);
+const NCELLS_MAX = COLS_MAX*ROWS_MAX;
+
+let P = { N:120000, F:0.08, D:0.08, R:16, K:0.10, mode:0, running:true, ballR:2.0, maxV:4.0, wall:0.85, omega:0.05 };
+
+const PARAMS = `
+struct Params {
+  n:u32, cols:u32, rows:u32, cap:u32,
+  ww:f32, wh:f32, cell:f32, radius:f32,
+  ballR:f32, force:f32, coupling:f32, damping:f32,
+  maxV:f32, wall:f32, omega:f32, mode:u32,
+};`;
+
+const BUILD_WGSL = PARAMS + `
+@group(0) @binding(0) var<uniform> P: Params;
+@group(0) @binding(1) var<storage, read> pos: array<vec2<f32>>;
+@group(0) @binding(2) var<storage, read_write> gcount: array<atomic<u32>>;
+@group(0) @binding(3) var<storage, read_write> gitems: array<u32>;
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>){
+  let i = gid.x; if(i >= P.n){ return; }
+  let p = pos[i];
+  var cx = i32(p.x / P.cell); var cy = i32(p.y / P.cell);
+  cx = clamp(cx, 0, i32(P.cols)-1); cy = clamp(cy, 0, i32(P.rows)-1);
+  let c = u32(cy)*P.cols + u32(cx);
+  let slot = atomicAdd(&gcount[c], 1u);
+  if(slot < P.cap){ gitems[c*P.cap + slot] = i; }
+}`;
+
+const SIM_WGSL = PARAMS + `
+@group(0) @binding(0) var<uniform> P: Params;
+@group(0) @binding(1) var<storage, read> posIn: array<vec2<f32>>;
+@group(0) @binding(2) var<storage, read> velIn: array<vec2<f32>>;
+@group(0) @binding(3) var<storage, read> phIn: array<f32>;
+@group(0) @binding(4) var<storage, read> tgt: array<vec2<f32>>;
+@group(0) @binding(5) var<storage, read> gcount: array<u32>;
+@group(0) @binding(6) var<storage, read> gitems: array<u32>;
+@group(0) @binding(7) var<storage, read_write> posOut: array<vec2<f32>>;
+@group(0) @binding(8) var<storage, read_write> velOut: array<vec2<f32>>;
+@group(0) @binding(9) var<storage, read_write> phOut: array<f32>;
+
+fn dirOf(i:u32, p:vec2<f32>) -> vec2<f32> {
+  if(P.mode == 0u){ let d = tgt[i]-p; let l = max(length(d), 1e-6); return d/l; }
+  return vec2<f32>(cos(phIn[i]), sin(phIn[i]));
+}
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>){
+  let i = gid.x; if(i >= P.n){ return; }
+  let p = posIn[i];
+  let di = dirOf(i, p);
+  var f = vec2<f32>(0.0, 0.0);
+  var sinAcc = 0.0; var cnt = 0.0;
+  let mind = P.ballR*2.0; let R = P.radius;
+  let cx = clamp(i32(p.x/P.cell), 0, i32(P.cols)-1);
+  let cy = clamp(i32(p.y/P.cell), 0, i32(P.rows)-1);
+  for(var oy=-1; oy<=1; oy=oy+1){
+    let gy = cy+oy; if(gy<0 || gy>=i32(P.rows)){ continue; }
+    for(var ox=-1; ox<=1; ox=ox+1){
+      let gx = cx+ox; if(gx<0 || gx>=i32(P.cols)){ continue; }
+      let c = u32(gy)*P.cols + u32(gx);
+      let cn = min(gcount[c], P.cap);
+      for(var s=0u; s<cn; s=s+1u){
+        let j = gitems[c*P.cap + s];
+        if(j == i){ continue; }
+        let pj = posIn[j]; let d = pj - p; let dist = length(d);
+        if(dist < mind && dist > 1e-6){ let n = d/dist; f = f - n*(mind-dist)*0.4; }
+        if(dist < R && dist > 1e-6){
+          let mag = P.force*(1.0 - dist/R);
+          let dj = dirOf(j, pj);
+          f = f + mag*di - mag*dj;
+          if(P.mode == 1u){ sinAcc = sinAcc + sin(phIn[j]-phIn[i]); cnt = cnt + 1.0; }
+        }
+      }
+    }
+  }
+  var v = velIn[i] + f;
+  v = v * P.damping;
+  let sp = length(v); if(sp > P.maxV){ v = v * (P.maxV/sp); }
+  var np = p + v;
+  if(np.x < P.ballR){ np.x = P.ballR; v.x = -v.x*P.wall; }
+  if(np.x > P.ww-P.ballR){ np.x = P.ww-P.ballR; v.x = -v.x*P.wall; }
+  if(np.y < P.ballR){ np.y = P.ballR; v.y = -v.y*P.wall; }
+  if(np.y > P.wh-P.ballR){ np.y = P.wh-P.ballR; v.y = -v.y*P.wall; }
+  posOut[i] = np; velOut[i] = v;
+  if(P.mode == 1u){
+    var th = phIn[i] + P.omega;
+    if(cnt > 0.0){ th = th + P.coupling*(sinAcc/cnt); }
+    phOut[i] = th;
+  } else { phOut[i] = phIn[i]; }
+}`;
+
+const RENDER_WGSL = PARAMS + `
+@group(0) @binding(0) var<uniform> P: Params;
+@group(0) @binding(1) var<storage, read> pos: array<vec2<f32>>;
+struct VOut { @builtin(position) clip: vec4<f32>, @location(0) col: vec3<f32> };
+fn hsv2rgb(h:f32, s:f32, v:f32) -> vec3<f32> {
+  let k = vec3<f32>(1.0, 2.0/3.0, 1.0/3.0);
+  let pp = abs(fract(vec3<f32>(h)+k)*6.0 - 3.0);
+  return v * mix(vec3<f32>(1.0), clamp(pp-1.0, vec3<f32>(0.0), vec3<f32>(1.0)), s);
+}
+@vertex
+fn vs(@builtin(vertex_index) vi:u32, @builtin(instance_index) ii:u32) -> VOut {
+  var corners = array<vec2<f32>,6>(
+    vec2<f32>(-1.0,-1.0), vec2<f32>(1.0,-1.0), vec2<f32>(-1.0,1.0),
+    vec2<f32>(-1.0,1.0), vec2<f32>(1.0,-1.0), vec2<f32>(1.0,1.0));
+  let c = corners[vi];
+  let world = pos[ii] + c*(P.ballR*1.6);
+  let clip = vec2<f32>(world.x/P.ww*2.0 - 1.0, 1.0 - world.y/P.wh*2.0);
+  var o: VOut;
+  o.clip = vec4<f32>(clip, 0.0, 1.0);
+  let hue = fract(f32(ii)*0.61803399);
+  o.col = hsv2rgb(hue, 0.72, 0.95);
+  return o;
+}
+@fragment
+fn fs(in: VOut) -> @location(0) vec4<f32> { return vec4<f32>(in.col, 1.0); }`;
+
+let device, ctx, format, paramBuf, posBuf=[], velBuf=[], phBuf=[], tgtBuf, gcountBuf, gitemsBuf;
+let buildPipe, simPipe, renderPipe;
+let buildBG=[], simBG=[], renderBG=[];
+let cur=0, gridDims={cols:1,rows:1,cell:16,ncells:1};
+const paramArr = new ArrayBuffer(64);
+const pu = new Uint32Array(paramArr), pf = new Float32Array(paramArr);
+
+async function initGPU(){
+  if(!('gpu' in navigator)){ fail("Il tuo browser non supporta WebGPU. Usa Chrome/Edge recenti (o attiva WebGPU nelle flag)."); return false; }
+  const adapter = await navigator.gpu.requestAdapter({ powerPreference:'high-performance' });
+  if(!adapter){ fail("Nessun adapter GPU disponibile (WebGPU). Controlla i driver / le flag del browser."); return false; }
+  device = await adapter.requestDevice();
+  device.lost.then(info=>fail("Device GPU perso: "+info.message));
+  try{ document.getElementById('gpuName').textContent = (adapter.info && (adapter.info.description||adapter.info.vendor)) || 'GPU'; }catch(e){}
+  ctx = cv.getContext('webgpu');
+  format = navigator.gpu.getPreferredCanvasFormat();
+  ctx.configure({ device, format, alphaMode:'opaque' });
+
+  paramBuf = device.createBuffer({ size:64, usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST });
+  for(let b=0;b<2;b++){
+    posBuf[b]=device.createBuffer({ size:MAXN*8, usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST });
+    velBuf[b]=device.createBuffer({ size:MAXN*8, usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST });
+    phBuf[b] =device.createBuffer({ size:MAXN*4, usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST });
+  }
+  tgtBuf   =device.createBuffer({ size:MAXN*8, usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST });
+  gcountBuf=device.createBuffer({ size:NCELLS_MAX*4, usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST });
+  gitemsBuf=device.createBuffer({ size:NCELLS_MAX*CAP*4, usage:GPUBufferUsage.STORAGE });
+
+  const buildMod=device.createShaderModule({code:BUILD_WGSL});
+  const simMod  =device.createShaderModule({code:SIM_WGSL});
+  const rendMod =device.createShaderModule({code:RENDER_WGSL});
+  buildPipe =device.createComputePipeline({ layout:'auto', compute:{ module:buildMod, entryPoint:'main' }});
+  simPipe   =device.createComputePipeline({ layout:'auto', compute:{ module:simMod, entryPoint:'main' }});
+  renderPipe=device.createRenderPipeline({ layout:'auto',
+    vertex:{ module:rendMod, entryPoint:'vs' },
+    fragment:{ module:rendMod, entryPoint:'fs', targets:[{format}] },
+    primitive:{ topology:'triangle-list' } });
+
+  for(let c=0;c<2;c++){
+    buildBG[c]=device.createBindGroup({ layout:buildPipe.getBindGroupLayout(0), entries:[
+      {binding:0,resource:{buffer:paramBuf}},
+      {binding:1,resource:{buffer:posBuf[c]}},
+      {binding:2,resource:{buffer:gcountBuf}},
+      {binding:3,resource:{buffer:gitemsBuf}} ]});
+    simBG[c]=device.createBindGroup({ layout:simPipe.getBindGroupLayout(0), entries:[
+      {binding:0,resource:{buffer:paramBuf}},
+      {binding:1,resource:{buffer:posBuf[c]}},
+      {binding:2,resource:{buffer:velBuf[c]}},
+      {binding:3,resource:{buffer:phBuf[c]}},
+      {binding:4,resource:{buffer:tgtBuf}},
+      {binding:5,resource:{buffer:gcountBuf}},
+      {binding:6,resource:{buffer:gitemsBuf}},
+      {binding:7,resource:{buffer:posBuf[1-c]}},
+      {binding:8,resource:{buffer:velBuf[1-c]}},
+      {binding:9,resource:{buffer:phBuf[1-c]}} ]});
+    renderBG[c]=device.createBindGroup({ layout:renderPipe.getBindGroupLayout(0), entries:[
+      {binding:0,resource:{buffer:paramBuf}},
+      {binding:1,resource:{buffer:posBuf[c]}} ]});
+  }
+  return true;
+}
+
+function reset(){
+  const N=P.N;
+  const pos=new Float32Array(N*2), vel=new Float32Array(N*2), ph=new Float32Array(N), tg=new Float32Array(N*2);
+  for(let i=0;i<N;i++){
+    pos[i*2]=Math.random()*WW; pos[i*2+1]=Math.random()*WH;
+    tg[i*2]=Math.random()*WW; tg[i*2+1]=Math.random()*WH;
+    ph[i]=Math.random()*6.2832;
+  }
+  device.queue.writeBuffer(posBuf[0],0,pos,0,N*2);
+  device.queue.writeBuffer(velBuf[0],0,vel,0,N*2);
+  device.queue.writeBuffer(phBuf[0],0,ph,0,N);
+  device.queue.writeBuffer(tgtBuf,0,tg,0,N*2);
+  cur=0;
+}
+
+function updateGrid(){
+  const cell=Math.max(P.R, CELL_MIN);
+  const cols=Math.max(1,Math.ceil(WW/cell)), rows=Math.max(1,Math.ceil(WH/cell));
+  gridDims={cols,rows,cell,ncells:cols*rows};
+}
+function writeParams(){
+  updateGrid();
+  pu[0]=P.N; pu[1]=gridDims.cols; pu[2]=gridDims.rows; pu[3]=CAP;
+  pf[4]=WW; pf[5]=WH; pf[6]=gridDims.cell; pf[7]=P.R;
+  pf[8]=P.ballR; pf[9]=P.F; pf[10]=P.K; pf[11]=1-P.D;
+  pf[12]=P.maxV; pf[13]=P.wall; pf[14]=P.omega; pu[15]=P.mode;
+  device.queue.writeBuffer(paramBuf,0,paramArr);
+}
+
+let frames=0, fpsT=0;
+function frame(t){
+  if(P.running && device){
+    writeParams();
+    const N=P.N, wg=Math.ceil(N/64);
+    const enc=device.createCommandEncoder();
+    enc.clearBuffer(gcountBuf, 0, gridDims.ncells*4);
+    { const pass=enc.beginComputePass(); pass.setPipeline(buildPipe); pass.setBindGroup(0,buildBG[cur]); pass.dispatchWorkgroups(wg); pass.end(); }
+    { const pass=enc.beginComputePass(); pass.setPipeline(simPipe); pass.setBindGroup(0,simBG[cur]); pass.dispatchWorkgroups(wg); pass.end(); }
+    const view=ctx.getCurrentTexture().createView();
+    { const pass=enc.beginRenderPass({ colorAttachments:[{ view, clearValue:{r:0.02,g:0.027,b:0.043,a:1}, loadOp:'clear', storeOp:'store' }] });
+      pass.setPipeline(renderPipe); pass.setBindGroup(0,renderBG[1-cur]); pass.draw(6, N); pass.end(); }
+    device.queue.submit([enc.finish()]);
+    cur=1-cur;
+  }
+  frames++; if(t-fpsT>500){ document.getElementById('fps').textContent=Math.round(frames*1000/(t-fpsT)); frames=0; fpsT=t; }
+  requestAnimationFrame(frame);
+}
+
+function fmtN(n){ return n>=1000? (n/1000).toFixed(n>=100000?0:1)+'k' : n; }
+function syncLabels(){
+  document.getElementById('vN').textContent=fmtN(P.N);
+  document.getElementById('vF').textContent=P.F.toFixed(2);
+  document.getElementById('vD').textContent=P.D.toFixed(2);
+  document.getElementById('vR').textContent=P.R;
+  document.getElementById('vK').textContent=P.K.toFixed(2);
+  document.getElementById('mCount').textContent=fmtN(P.N);
+}
+document.getElementById('sN').oninput=e=>{ P.N=+e.target.value; syncLabels(); reset(); };
+document.getElementById('sF').oninput=e=>{ P.F=+e.target.value/100; syncLabels(); };
+document.getElementById('sD').oninput=e=>{ P.D=+e.target.value/100; syncLabels(); };
+document.getElementById('sR').oninput=e=>{ P.R=+e.target.value; syncLabels(); };
+document.getElementById('sK').oninput=e=>{ P.K=+e.target.value/100; syncLabels(); };
+document.getElementById('mGoal').onclick=()=>{ P.mode=0; document.getElementById('mGoal').classList.add('on'); document.getElementById('mFreq').classList.remove('on'); };
+document.getElementById('mFreq').onclick=()=>{ P.mode=1; document.getElementById('mFreq').classList.add('on'); document.getElementById('mGoal').classList.remove('on'); };
+document.getElementById('bPlay').onclick=e=>{ P.running=!P.running; e.target.textContent=P.running?'Pausa':'Play'; };
+document.getElementById('bReset').onclick=()=>reset();
+
+(async()=>{
+  const ok=await initGPU();
+  syncLabels();
+  if(ok){ reset(); requestAnimationFrame(frame); }
+})();
+</script>
+</body>
+</html>
