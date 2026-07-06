@@ -48,8 +48,8 @@
       <div class="lab" style="top:218px">S2 · frequenza (nessun obiettivo)</div>
       <div class="lab" style="top:432px">S3 · vuoti di S2</div>
       <div class="lab" style="top:646px">S4 · vuoti di S1</div>
-      <div class="lab" style="top:858px">Rilievo 3D · vuoti di S2 (picchi = vuoto)</div>
-      <div class="lab" style="top:1092px">Rilievo 3D · vuoti di S1 (picchi = vuoto)</div>
+      <div class="lab" style="top:858px">Cubo 3D · vuoti di S2 (facce gonfie = vuoto)</div>
+      <div class="lab" style="top:1092px">Cubo 3D · vuoti di S1 (facce gonfie = vuoto)</div>
     </div>
     <div class="err" id="err"></div>
   </div>
@@ -105,7 +105,7 @@ function fail(m){ errBox.style.display='block'; errBox.textContent=m; console.er
 const sp=[document.getElementById('sp1').getContext('2d'),document.getElementById('sp2').getContext('2d'),document.getElementById('sp3').getContext('2d'),document.getElementById('sp4').getContext('2d')];
 const hist=[[],[],[],[],[]]; // dist, sync, overlap, v1, v2
 
-const CW=720,CH=1326,PW=720,PH=180,PANY=[20,234,448,662],PH_R=200,PANY5=[876,1110],RCOLS=160,RROWS=40,RVCOUNT=(RCOLS-1)*(RROWS-1)*6;
+const CW=720,CH=1326,PW=720,PH=180,PANY=[20,234,448,662],PH_R=200,PANY5=[876,1110],RCOLS=32,RROWS=32,RVCOUNT=6*(RCOLS-1)*(RCOLS-1)*6;
 const MAXN=300000,CAP=48,CELL_MIN=10,DCOLS_MAX=560,DROWS_MAX=140,NDENS_MAX=DCOLS_MAX*DROWS_MAX;
 const COLS_MAX=Math.ceil(PW/CELL_MIN),ROWS_MAX=Math.ceil(PH/CELL_MIN),NCM=COLS_MAX*ROWS_MAX;
 const STEPS=[512,256,128,64,32,16,8,4,2,1], REF=16.0;
@@ -258,24 +258,28 @@ fn vAt(gx:i32,gy:i32)->f32{ let cx=clamp(gx,0,i32(L.dcols)-1); let cy=clamp(gy,0
   let s=seed[u32(cy)*L.dcols+u32(cx)]; var d=L.rf*2.0;
   if(s!=0xffffffffu){ let sx=i32(s%L.dcols); let sy=i32(s/L.dcols); d=sqrt(f32((cx-sx)*(cx-sx)+(cy-sy)*(cy-sy))); }
   return clamp(d/L.rf,0.0,1.0); }
-fn proj(p:vec3<f32>)->vec3<f32>{ let ca=cos(L.angle); let sa=sin(L.angle);
-  let x1=p.x*ca-p.z*sa; let z1=p.x*sa+p.z*ca; let cp=cos(0.95); let sp=sin(0.95);
+fn rot(p:vec3<f32>)->vec3<f32>{ let ca=cos(L.angle); let sa=sin(L.angle);
+  let x1=p.x*ca-p.z*sa; let z1=p.x*sa+p.z*ca; let cp=cos(0.62); let sp=sin(0.62);
   let y2=p.y*cp-z1*sp; let z2=p.y*sp+z1*cp; return vec3<f32>(x1,y2,z2); }
 @vertex fn vs(@builtin(vertex_index) vi:u32)->VO{
-  let rc=L.rcols; let rr=L.rrows; let quad=vi/6u; let corner=vi%6u;
-  let qx=quad%(rc-1u); let qy=quad/(rc-1u); var ox=0u; var oy=0u;
+  let rc=L.rcols; let per=(rc-1u)*(rc-1u)*6u; let face=vi/per; let li=vi%per;
+  let quad=li/6u; let corner=li%6u; let qx=quad%(rc-1u); let qy=quad/(rc-1u);
+  var ox=0u; var oy=0u;
   if(corner==1u){ox=1u;} else if(corner==2u){oy=1u;} else if(corner==3u){oy=1u;} else if(corner==4u){ox=1u;} else if(corner==5u){ox=1u;oy=1u;}
-  let gx=qx+ox; let gy=qy+oy;
-  let u=f32(gx)/f32(rc-1u); let v=f32(gy)/f32(rr-1u);
-  let sgx=i32(u*f32(L.dcols)); let sgy=i32(v*f32(L.drows));
-  let h=vAt(sgx,sgy);
+  let gx=qx+ox; let gy=qy+oy; let u=f32(gx)/f32(rc-1u); let v=f32(gy)/f32(rc-1u);
+  let sgx=i32(u*f32(L.dcols)); let sgy=i32(v*f32(L.drows)); let h=vAt(sgx,sgy);
+  var Ns=array<vec3<f32>,6>(vec3<f32>(1.0,0.0,0.0),vec3<f32>(-1.0,0.0,0.0),vec3<f32>(0.0,1.0,0.0),vec3<f32>(0.0,-1.0,0.0),vec3<f32>(0.0,0.0,1.0),vec3<f32>(0.0,0.0,-1.0));
+  var Us=array<vec3<f32>,6>(vec3<f32>(0.0,0.0,1.0),vec3<f32>(0.0,0.0,-1.0),vec3<f32>(1.0,0.0,0.0),vec3<f32>(1.0,0.0,0.0),vec3<f32>(-1.0,0.0,0.0),vec3<f32>(1.0,0.0,0.0));
+  var Vs=array<vec3<f32>,6>(vec3<f32>(0.0,1.0,0.0),vec3<f32>(0.0,1.0,0.0),vec3<f32>(0.0,0.0,1.0),vec3<f32>(0.0,0.0,-1.0),vec3<f32>(0.0,1.0,0.0),vec3<f32>(0.0,1.0,0.0));
+  let N=Ns[face]; let TU=Us[face]; let TV=Vs[face];
+  let half=0.42; let disp=0.20*L.hscale;
+  let pos=N*half + (u-0.5)*TU + (v-0.5)*TV + N*h*disp;
   let hx=vAt(sgx+2,sgy)-vAt(sgx-2,sgy); let hz=vAt(sgx,sgy+2)-vAt(sgx,sgy-2);
-  let n=normalize(vec3<f32>(-hx*4.0,1.0,-hz*4.0));
-  let lit=clamp(dot(n,normalize(vec3<f32>(0.4,0.85,0.35))),0.25,1.0);
-  let p=vec3<f32>((u-0.5)*2.6,(h-0.35)*L.hscale,(v-0.5)*0.9);
-  let pr=proj(p);
-  var o:VO; o.clip=vec4<f32>(pr.x*0.32,pr.y*0.9,pr.z*0.18+0.5,1.0);
-  o.col=vec3<f32>(0.30,0.85,0.72)*(0.22+h*0.95)*lit; return o; }
+  let nrm=normalize(N - TU*hx*2.5 - TV*hz*2.5);
+  let pp=rot(pos); let pn=rot(nrm);
+  let lit=clamp(dot(normalize(pn),normalize(vec3<f32>(0.35,0.8,0.45))),0.2,1.0);
+  var o:VO; o.clip=vec4<f32>(pp.x*0.20,pp.y*0.72,pp.z*0.13+0.5,1.0);
+  o.col=vec3<f32>(0.30,0.85,0.72)*(0.25+h*0.9)*lit; return o; }
 @fragment fn fs(i:VO)->@location(0) vec4<f32>{ return vec4<f32>(i.col,1.0); }`;
 
 let device,ctx,format;
