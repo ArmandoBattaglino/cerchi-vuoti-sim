@@ -22,6 +22,8 @@
   input[type=range]{ width:168px; accent-color:var(--accent); }
   .chk{ display:flex; align-items:center; gap:9px; margin:9px 0; color:var(--dim); cursor:pointer; }
   .chk input{ width:16px; height:16px; accent-color:var(--accent); }
+  .chk{ display:flex; align-items:center; gap:9px; margin:9px 0; color:var(--dim); cursor:pointer; font-size:13px; }
+  .chk input{ width:16px; height:16px; accent-color:var(--accent); }
   .btns{ display:flex; gap:10px; margin-top:13px; flex-wrap:wrap; }
   button{ flex:1; min-width:110px; background:#1b2130; color:var(--ink); border:1px solid var(--line); border-radius:9px; padding:9px 12px; font-size:14px; cursor:pointer; }
   button:hover{ background:#232c3d; } button.primary{ background:var(--accent); color:#04120e; border-color:var(--accent); font-weight:650; }
@@ -58,6 +60,10 @@
     <div class="row"><label>Accoppiamento (sync S2)</label><input id="sK" type="range" min="0" max="30" value="12"><span class="val" id="vK">0.12</span></div>
     <div class="row"><label>Intensità vuoti</label><input id="sV" type="range" min="1" max="20" value="8"><span class="val" id="vV">2.7</span></div>
     <div class="row"><label>Risoluzione vuoti</label><input id="sRes" type="range" min="80" max="560" step="40" value="400"><span class="val" id="vRes">400</span></div>
+
+    <label class="chk"><input type="checkbox" id="cFilter"> Filtro spostamenti (colore opposto)</label>
+    <label class="chk"><input type="checkbox" id="cGlow"> Frequenza scambi (bagliore)</label>
+    <label class="chk"><input type="checkbox" id="cDots"> Palline di riferimento in S3/S4</label>
 
     <div class="btns">
       <button id="bPlay" class="primary">Pausa</button>
@@ -101,10 +107,10 @@ const CW=720,CH=858,PW=720,PH=180,PANY=[20,234,448,662];
 const MAXN=300000,CAP=48,CELL_MIN=10,DCOLS_MAX=560,DROWS_MAX=140,NDENS_MAX=DCOLS_MAX*DROWS_MAX;
 const COLS_MAX=Math.ceil(PW/CELL_MIN),ROWS_MAX=Math.ceil(PH/CELL_MIN),NCM=COLS_MAX*ROWS_MAX;
 const STEPS=[512,256,128,64,32,16,8,4,2,1], REF=16.0;
-let P={ N:30000,F:0.08,D:0.08,R:16,K:0.12,V:2.7,dcols:400,drows:100,running:true,ballR:1.8,maxV:4.0,wall:0.85,omega:0.06 };
+let P={ N:30000,F:0.08,D:0.08,R:16,K:0.12,V:2.7,dcols:400,drows:100,filter:false,glow:false,dots:false,running:true,ballR:1.8,maxV:4.0,wall:0.85,omega:0.06 };
 
 const PHYS=`struct Par { n:u32,cols:u32,rows:u32,cap:u32, ww:f32,wh:f32,cell:f32,radius:f32, ballR:f32,force:f32,coupling:f32,damping:f32, maxV:f32,wall:f32,omega:f32,mode:u32 };`;
-const RU=`struct RU { ww:f32,wh:f32,dcols:u32,drows:u32, dcell:f32,pointSize:f32,n:u32,intensity:f32 };`;
+const RU=`struct RU { ww:f32,wh:f32,dcols:u32,drows:u32, dcell:f32,pointSize:f32,n:u32,intensity:f32, flags:u32,pa:u32,pb:u32,pc:u32 };`;
 const JU=`struct JU { step:u32,dcols:u32,drows:u32,rf:f32 };`;
 
 const BUILD=PHYS+`
@@ -129,6 +135,7 @@ const SIM=PHYS+`
 @group(0) @binding(8) var<storage,read_write> velOut: array<vec2<f32>>;
 @group(0) @binding(9) var<storage,read_write> phOut: array<f32>;
 @group(0) @binding(10) var<storage,read_write> acc: array<atomic<i32>>;
+@group(0) @binding(11) var<storage,read_write> exb: array<u32>;
 fn dirOf(i:u32,p:vec2<f32>)->vec2<f32>{ if(P.mode==0u){ let d=tgt[i]-p; return d/max(length(d),1e-6);} return vec2<f32>(cos(phIn[i]),sin(phIn[i])); }
 @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3<u32>){
   let i=g.x; if(i>=P.n){return;}
@@ -147,7 +154,7 @@ fn dirOf(i:u32,p:vec2<f32>)->vec2<f32>{ if(P.mode==0u){ let d=tgt[i]-p; return d
   var np=p+v;
   if(np.x<P.ballR){np.x=P.ballR;v.x=-v.x*P.wall;} if(np.x>P.ww-P.ballR){np.x=P.ww-P.ballR;v.x=-v.x*P.wall;}
   if(np.y<P.ballR){np.y=P.ballR;v.y=-v.y*P.wall;} if(np.y>P.wh-P.ballR){np.y=P.wh-P.ballR;v.y=-v.y*P.wall;}
-  posOut[i]=np; velOut[i]=v;
+  posOut[i]=np; velOut[i]=v; exb[i]=u32(ex);
   atomicAdd(&acc[2], ex);
   if(P.mode==0u){ let dd=length(np-tgt[i]); atomicAdd(&acc[0], i32(dd*4.0)); phOut[i]=phIn[i]; }
   else { var th=phIn[i]+P.omega; if(cnt>0.0){ th=th+P.coupling*(sinAcc/cnt); } phOut[i]=th;
@@ -211,13 +218,19 @@ const OVERLAP=RU+`
 const PART=RU+`
 @group(0) @binding(0) var<uniform> R: RU;
 @group(0) @binding(1) var<storage,read> pos: array<vec2<f32>>;
+@group(0) @binding(2) var<storage,read> vel: array<vec2<f32>>;
+@group(0) @binding(3) var<storage,read> exb: array<u32>;
 struct VO{ @builtin(position) clip:vec4<f32>, @location(0) col:vec3<f32> };
 fn hsv(h:f32,s:f32,v:f32)->vec3<f32>{ let k=vec3<f32>(1.0,2.0/3.0,1.0/3.0); let pp=abs(fract(vec3<f32>(h)+k)*6.0-3.0); return v*mix(vec3<f32>(1.0),clamp(pp-1.0,vec3<f32>(0.0),vec3<f32>(1.0)),s); }
 @vertex fn vs(@builtin(vertex_index) vi:u32,@builtin(instance_index) ii:u32)->VO{
   var cr=array<vec2<f32>,6>(vec2<f32>(-1.0,-1.0),vec2<f32>(1.0,-1.0),vec2<f32>(-1.0,1.0),vec2<f32>(-1.0,1.0),vec2<f32>(1.0,-1.0),vec2<f32>(1.0,1.0));
-  let world=pos[ii]+cr[vi]*R.pointSize;
-  var o:VO; o.clip=vec4<f32>(world.x/R.ww*2.0-1.0,1.0-world.y/R.wh*2.0,0.0,1.0);
-  o.col=hsv(fract(f32(ii)*0.61803399),0.72,0.95); return o; }
+  let hue=fract(f32(ii)*0.61803399);
+  var col=hsv(hue,0.72,0.95); var size=R.pointSize;
+  if((R.flags&2u)!=0u){ let g=min(f32(exb[ii]),12.0); size=size*(1.0+g*0.12); col=col*(1.0+g*0.06); }
+  if((R.flags&1u)!=0u){ let spd=clamp(length(vel[ii])*0.5,0.0,1.0); col=mix(col,hsv(fract(hue+0.5),0.85,1.0),spd); }
+  if((R.flags&4u)!=0u){ size=1.3; col=vec3<f32>(0.03,0.04,0.06); }
+  let world=pos[ii]+cr[vi]*size;
+  var o:VO; o.clip=vec4<f32>(world.x/R.ww*2.0-1.0,1.0-world.y/R.wh*2.0,0.0,1.0); o.col=col; return o; }
 @fragment fn fs(i:VO)->@location(0) vec4<f32>{ return vec4<f32>(i.col,1.0); }`;
 
 const HEAT=RU+`
@@ -235,11 +248,11 @@ struct VO{ @builtin(position) clip:vec4<f32>, @location(0) uv:vec2<f32> };
   return vec4<f32>(0.37*e,0.88*e,0.75*e,1.0); }`;
 
 let device,ctx,format;
-let physBuf=[],ruBuf,juBuf=[],gcBuf,giBuf;
-let pos=[[],[]],vel=[[],[]],ph=[[],[]],tgt=[],densBuf=[],seedBuf=[[],[]],accBuf=[],vstatBuf=[],ovBuf;
+let physBuf=[],ruBuf,ruDotBuf,juBuf=[],gcBuf,giBuf;
+let pos=[[],[]],vel=[[],[]],ph=[[],[]],tgt=[],densBuf=[],seedBuf=[[],[]],accBuf=[],vstatBuf=[],ovBuf,exBuf=[];
 let pipes={}, BG={};
 let cur=0,grid={cols:1,rows:1,cell:16};
-const physAB=[new ArrayBuffer(64),new ArrayBuffer(64)], ruAB=new ArrayBuffer(32);
+const physAB=[new ArrayBuffer(64),new ArrayBuffer(64)], ruAB=new ArrayBuffer(48), ruDotAB=new ArrayBuffer(48);
 let stag=[], mapping=false;
 
 async function initGPU(){
@@ -253,11 +266,11 @@ async function initGPU(){
   try{ document.getElementById('gpuName').textContent=(adapter.info&&(adapter.info.description||adapter.info.vendor))||'GPU'; }catch(e){}
   ctx=cv.getContext('webgpu'); format=navigator.gpu.getPreferredCanvasFormat(); ctx.configure({device,format,alphaMode:'opaque'});
   const U=GPUBufferUsage, S=(sz,u)=>device.createBuffer({size:sz,usage:u});
-  physBuf=[S(64,U.UNIFORM|U.COPY_DST),S(64,U.UNIFORM|U.COPY_DST)]; ruBuf=S(32,U.UNIFORM|U.COPY_DST);
+  physBuf=[S(64,U.UNIFORM|U.COPY_DST),S(64,U.UNIFORM|U.COPY_DST)]; ruBuf=S(48,U.UNIFORM|U.COPY_DST); ruDotBuf=S(48,U.UNIFORM|U.COPY_DST);
   for(let k=0;k<STEPS.length;k++){ juBuf.push(S(16,U.UNIFORM|U.COPY_DST)); }
   juBuf.initB=S(16,U.UNIFORM|U.COPY_DST);
   gcBuf=S(NCM*4,U.STORAGE|U.COPY_DST); giBuf=S(NCM*CAP*4,U.STORAGE);
-  for(let s=0;s<2;s++){ pos[s]=[S(MAXN*8,U.STORAGE|U.COPY_DST),S(MAXN*8,U.STORAGE|U.COPY_DST)]; vel[s]=[S(MAXN*8,U.STORAGE|U.COPY_DST),S(MAXN*8,U.STORAGE|U.COPY_DST)]; ph[s]=[S(MAXN*4,U.STORAGE|U.COPY_DST),S(MAXN*4,U.STORAGE|U.COPY_DST)]; tgt[s]=S(MAXN*8,U.STORAGE|U.COPY_DST); densBuf[s]=S(NDENS_MAX*4,U.STORAGE|U.COPY_DST); seedBuf[s]=[S(NDENS_MAX*4,U.STORAGE),S(NDENS_MAX*4,U.STORAGE)]; accBuf[s]=S(16,U.STORAGE|U.COPY_DST|U.COPY_SRC); vstatBuf[s]=S(8,U.STORAGE|U.COPY_DST|U.COPY_SRC); }
+  for(let s=0;s<2;s++){ pos[s]=[S(MAXN*8,U.STORAGE|U.COPY_DST),S(MAXN*8,U.STORAGE|U.COPY_DST)]; vel[s]=[S(MAXN*8,U.STORAGE|U.COPY_DST),S(MAXN*8,U.STORAGE|U.COPY_DST)]; ph[s]=[S(MAXN*4,U.STORAGE|U.COPY_DST),S(MAXN*4,U.STORAGE|U.COPY_DST)]; tgt[s]=S(MAXN*8,U.STORAGE|U.COPY_DST); densBuf[s]=S(NDENS_MAX*4,U.STORAGE|U.COPY_DST); seedBuf[s]=[S(NDENS_MAX*4,U.STORAGE),S(NDENS_MAX*4,U.STORAGE)]; accBuf[s]=S(16,U.STORAGE|U.COPY_DST|U.COPY_SRC); vstatBuf[s]=S(8,U.STORAGE|U.COPY_DST|U.COPY_SRC); exBuf[s]=S(MAXN*4,U.STORAGE|U.COPY_DST); }
   ovBuf=S(8,U.STORAGE|U.COPY_DST|U.COPY_SRC);
   for(let k=0;k<3;k++) stag.push(S(64,U.COPY_DST|U.MAP_READ));
   const sm=c=>device.createShaderModule({code:c});
@@ -271,12 +284,13 @@ async function initGPU(){
   pipes.part=device.createRenderPipeline({layout:'auto',vertex:{module:sm(PART),entryPoint:'vs'},fragment:{module:sm(PART),entryPoint:'fs',targets:[{format}]},primitive:{topology:'triangle-list'}});
   pipes.heat=device.createRenderPipeline({layout:'auto',vertex:{module:sm(HEAT),entryPoint:'vs'},fragment:{module:sm(HEAT),entryPoint:'fs',targets:[{format}]},primitive:{topology:'triangle-list'}});
   const bg=(pl,e)=>device.createBindGroup({layout:pl.getBindGroupLayout(0),entries:e});
-  BG.build=[[],[]];BG.sim=[[],[]];BG.dens=[[],[]];BG.part=[[],[]];BG.heat=[];BG.jinit=[];BG.jstep=[[],[]];BG.vred=[];BG.ov=[];
+  BG.build=[[],[]];BG.sim=[[],[]];BG.dens=[[],[]];BG.part=[[],[]];BG.dot=[[],[]];BG.heat=[];BG.jinit=[];BG.jstep=[[],[]];BG.vred=[];BG.ov=[];
   for(let s=0;s<2;s++)for(let c=0;c<2;c++){
     BG.build[s][c]=bg(pipes.build,[{binding:0,resource:{buffer:physBuf[s]}},{binding:1,resource:{buffer:pos[s][c]}},{binding:2,resource:{buffer:gcBuf}},{binding:3,resource:{buffer:giBuf}}]);
-    BG.sim[s][c]=bg(pipes.sim,[{binding:0,resource:{buffer:physBuf[s]}},{binding:1,resource:{buffer:pos[s][c]}},{binding:2,resource:{buffer:vel[s][c]}},{binding:3,resource:{buffer:ph[s][c]}},{binding:4,resource:{buffer:tgt[s]}},{binding:5,resource:{buffer:gcBuf}},{binding:6,resource:{buffer:giBuf}},{binding:7,resource:{buffer:pos[s][1-c]}},{binding:8,resource:{buffer:vel[s][1-c]}},{binding:9,resource:{buffer:ph[s][1-c]}},{binding:10,resource:{buffer:accBuf[s]}}]);
+    BG.sim[s][c]=bg(pipes.sim,[{binding:0,resource:{buffer:physBuf[s]}},{binding:1,resource:{buffer:pos[s][c]}},{binding:2,resource:{buffer:vel[s][c]}},{binding:3,resource:{buffer:ph[s][c]}},{binding:4,resource:{buffer:tgt[s]}},{binding:5,resource:{buffer:gcBuf}},{binding:6,resource:{buffer:giBuf}},{binding:7,resource:{buffer:pos[s][1-c]}},{binding:8,resource:{buffer:vel[s][1-c]}},{binding:9,resource:{buffer:ph[s][1-c]}},{binding:10,resource:{buffer:accBuf[s]}},{binding:11,resource:{buffer:exBuf[s]}}]);
     BG.dens[s][c]=bg(pipes.dens,[{binding:0,resource:{buffer:ruBuf}},{binding:1,resource:{buffer:pos[s][1-c]}},{binding:2,resource:{buffer:densBuf[s]}}]);
-    BG.part[s][c]=bg(pipes.part,[{binding:0,resource:{buffer:ruBuf}},{binding:1,resource:{buffer:pos[s][1-c]}}]);
+    BG.part[s][c]=bg(pipes.part,[{binding:0,resource:{buffer:ruBuf}},{binding:1,resource:{buffer:pos[s][1-c]}},{binding:2,resource:{buffer:vel[s][1-c]}},{binding:3,resource:{buffer:exBuf[s]}}]);
+    BG.dot[s][c]=bg(pipes.part,[{binding:0,resource:{buffer:ruDotBuf}},{binding:1,resource:{buffer:pos[s][1-c]}},{binding:2,resource:{buffer:vel[s][1-c]}},{binding:3,resource:{buffer:exBuf[s]}}]);
   }
   for(let s=0;s<2;s++){
     BG.jinit[s]=bg(pipes.jinit,[{binding:0,resource:{buffer:juBuf.initB}},{binding:1,resource:{buffer:densBuf[s]}},{binding:2,resource:{buffer:seedBuf[s][0]}}]);
@@ -298,7 +312,8 @@ function writeUniforms(){
   grid.cell=Math.max(P.R,CELL_MIN); grid.cols=Math.max(1,Math.ceil(PW/grid.cell)); grid.rows=Math.max(1,Math.ceil(PH/grid.cell));
   for(let s=0;s<2;s++){ const u=new Uint32Array(physAB[s]),f=new Float32Array(physAB[s]);
     u[0]=P.N;u[1]=grid.cols;u[2]=grid.rows;u[3]=CAP;f[4]=PW;f[5]=PH;f[6]=grid.cell;f[7]=P.R;f[8]=P.ballR;f[9]=P.F;f[10]=P.K;f[11]=1-P.D;f[12]=P.maxV;f[13]=P.wall;f[14]=P.omega;u[15]=s; device.queue.writeBuffer(physBuf[s],0,physAB[s]); }
-  const u=new Uint32Array(ruAB),f=new Float32Array(ruAB); f[0]=PW;f[1]=PH;u[2]=P.dcols;u[3]=P.drows;f[4]=PW/P.dcols;f[5]=P.ballR*1.4;u[6]=P.N;f[7]=P.V; device.queue.writeBuffer(ruBuf,0,ruAB);
+  const u=new Uint32Array(ruAB),f=new Float32Array(ruAB); f[0]=PW;f[1]=PH;u[2]=P.dcols;u[3]=P.drows;f[4]=PW/P.dcols;f[5]=P.ballR*1.4;u[6]=P.N;f[7]=P.V;u[8]=(P.filter?1:0)|(P.glow?2:0); device.queue.writeBuffer(ruBuf,0,ruAB);
+  const du=new Uint32Array(ruDotAB),df=new Float32Array(ruDotAB); df[0]=PW;df[1]=PH;du[2]=P.dcols;du[3]=P.drows;df[4]=PW/P.dcols;df[5]=P.ballR*1.4;du[6]=P.N;df[7]=P.V;du[8]=4; device.queue.writeBuffer(ruDotBuf,0,ruDotAB);
   for(let k=0;k<STEPS.length;k++){ const ab=new ArrayBuffer(16),uu=new Uint32Array(ab),ff=new Float32Array(ab); uu[0]=STEPS[k];uu[1]=P.dcols;uu[2]=P.drows;ff[3]=REF; device.queue.writeBuffer(juBuf[k],0,ab); }
   { const ab=new ArrayBuffer(16),uu=new Uint32Array(ab),ff=new Float32Array(ab); uu[0]=1;uu[1]=P.dcols;uu[2]=P.drows;ff[3]=REF; device.queue.writeBuffer(juBuf.initB,0,ab); }
 }
@@ -332,7 +347,9 @@ function frame(t){
     rp.setViewport(0,PANY[0],PW,PH,0,1);rp.setPipeline(pipes.part);rp.setBindGroup(0,BG.part[0][cur]);rp.draw(6,N);
     rp.setViewport(0,PANY[1],PW,PH,0,1);rp.setBindGroup(0,BG.part[1][cur]);rp.draw(6,N);
     rp.setViewport(0,PANY[2],PW,PH,0,1);rp.setPipeline(pipes.heat);rp.setBindGroup(0,BG.heat[1]);rp.draw(6,1);
-    rp.setViewport(0,PANY[3],PW,PH,0,1);rp.setBindGroup(0,BG.heat[0]);rp.draw(6,1);
+    if(P.dots){ rp.setPipeline(pipes.part);rp.setBindGroup(0,BG.dot[1][cur]);rp.draw(6,N); }
+    rp.setViewport(0,PANY[3],PW,PH,0,1);rp.setPipeline(pipes.heat);rp.setBindGroup(0,BG.heat[0]);rp.draw(6,1);
+    if(P.dots){ rp.setPipeline(pipes.part);rp.setBindGroup(0,BG.dot[0][cur]);rp.draw(6,N); }
     rp.end();
     // readback metriche (non bloccante)
     let sb=null; if(!mapping){ sb=stag.find(b=>b.mapState==='unmapped'); }
@@ -371,6 +388,9 @@ function addParticles(count,lx,ly){ if(!device) return; const start=P.N,end=Math
 document.getElementById('sN').oninput=e=>{ P.N=+e.target.value; syncLabels(); reset(); };
 document.getElementById('sRes').oninput=e=>{ P.dcols=+e.target.value; P.drows=Math.round(P.dcols/4); syncLabels(); };
 document.getElementById('bAdd').onclick=()=>addParticles(20000,null,null);
+document.getElementById('cFilter').onchange=e=>{ P.filter=e.target.checked; };
+document.getElementById('cGlow').onchange=e=>{ P.glow=e.target.checked; };
+document.getElementById('cDots').onchange=e=>{ P.dots=e.target.checked; };
 cv.addEventListener('click',e=>{ const r=cv.getBoundingClientRect(); const x=(e.clientX-r.left)*(CW/r.width), y=(e.clientY-r.top)*(CH/r.height);
   let panel=-1; if(y>=PANY[0]&&y<=PANY[0]+PH)panel=0; else if(y>=PANY[1]&&y<=PANY[1]+PH)panel=1; if(panel<0) return;
   addParticles(4000, x, y-PANY[panel]); });
