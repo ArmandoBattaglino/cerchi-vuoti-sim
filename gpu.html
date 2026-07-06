@@ -210,8 +210,11 @@ async function initGPU(){
   if(!('gpu' in navigator)){ fail("Il tuo browser non supporta WebGPU. Usa Chrome/Edge recenti (o attiva WebGPU nelle flag)."); return false; }
   const adapter = await navigator.gpu.requestAdapter({ powerPreference:'high-performance' });
   if(!adapter){ fail("Nessun adapter GPU disponibile (WebGPU). Controlla i driver / le flag del browser."); return false; }
-  device = await adapter.requestDevice();
+  const maxSB = adapter.limits.maxStorageBuffersPerShaderStage;
+  if(maxSB < 9){ fail("La tua GPU/driver espone solo "+maxSB+" storage buffer per stage (ne servono 9). Aggiorna i driver o usa una GPU più recente."); return false; }
+  device = await adapter.requestDevice({ requiredLimits: { maxStorageBuffersPerShaderStage: Math.min(16, maxSB) } });
   device.lost.then(info=>fail("Device GPU perso: "+info.message));
+  device.addEventListener('uncapturederror', e=>fail("Errore GPU: "+e.error.message));
   try{ document.getElementById('gpuName').textContent = (adapter.info && (adapter.info.description||adapter.info.vendor)) || 'GPU'; }catch(e){}
   ctx = cv.getContext('webgpu');
   format = navigator.gpu.getPreferredCanvasFormat();
