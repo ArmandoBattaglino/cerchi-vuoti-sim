@@ -75,6 +75,7 @@
       <button id="shpRel">Rilievo</button>
       <button id="shpCube">Cubo</button>
       <button id="shpCyl" class="on">Cilindro</button>
+      <button id="shpSph">Sfera</button>
     </div>
 
     <div class="btns">
@@ -292,7 +293,7 @@ fn rot(p:vec3<f32>)->vec3<f32>{ let ca=cos(L.angle); let sa=sin(L.angle);
     let hx=vAt(sgx+2,sgy)-vAt(sgx-2,sgy); let hz=vAt(sgx,sgy+2)-vAt(sgx,sgy-2);
     pos=N*0.42 + (u-0.5)*TU + (v-0.5)*TV + N*h*(0.20*L.hscale);
     nrm=normalize(N - TU*hx*2.5 - TV*hz*2.5); sx=0.50; sy=1.4;
-  } else {
+  } else if(L.shape==2u){
     let R=0.42; let H=0.6; let PI2=6.28318;
     if(part==1u){
       let th=u*PI2; let yy=(v-0.5)*H;
@@ -303,6 +304,12 @@ fn rot(p:vec3<f32>)->vec3<f32>{ let ca=cos(L.angle); let sa=sin(L.angle);
       let ang=v*PI2; let rr=u; let sign=select(-1.0,1.0,part==2u);
       pos=vec3<f32>(cos(ang)*rr*R, sign*(H*0.5), sin(ang)*rr*R); nrm=vec3<f32>(0.0,sign,0.0); dataCol=false;
     }
+  } else {
+    let th=u*6.28318; let ph=v*3.14159;
+    let sgx=i32(u*f32(L.dcols)); let sgy=i32(v*f32(L.drows)); h=vAt(sgx,sgy);
+    let rad=0.46 + h*(0.14*L.hscale);
+    let sph=vec3<f32>(sin(ph)*cos(th),cos(ph),sin(ph)*sin(th));
+    pos=rad*sph; nrm=sph;
   }
   let pp=rot(pos); let pn=rot(nrm);
   let lit=clamp(dot(normalize(pn),normalize(vec3<f32>(0.35,0.8,0.45))),0.55,1.0);
@@ -420,7 +427,7 @@ function frame(t){
     rp.end();
     // rilievi 3D (pass separato con depth)
     { const lu=new Uint32Array(rluAB),lf=new Float32Array(rluAB); lu[0]=P.dcols;lu[1]=P.drows;lu[2]=RCOLS;lu[3]=RROWS;lf[4]=t*0.0004;lf[5]=1.3;lf[6]=16.0;lu[7]=P.shape; device.queue.writeBuffer(rluBuf,0,rluAB); }
-    const drawN=P.shape===0?PERFACE:(P.shape===1?RVCOUNT:3*PERFACE);
+    const drawN=P.shape===1?RVCOUNT:(P.shape===2?3*PERFACE:PERFACE);
     const rp2=enc.beginRenderPass({colorAttachments:[{view,loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:depthTex.createView(),depthClearValue:1.0,depthLoadOp:'clear',depthStoreOp:'store'}});
     rp2.setPipeline(pipes.relief);
     rp2.setViewport(0,PANY5[0],PW,PH_R,0,1); rp2.setBindGroup(0,BG.relief[1]); rp2.draw(drawN);
@@ -466,10 +473,11 @@ document.getElementById('bAdd').onclick=()=>addParticles(20000,null,null);
 document.getElementById('cFilter').onchange=e=>{ P.filter=e.target.checked; };
 document.getElementById('cGlow').onchange=e=>{ P.glow=e.target.checked; };
 document.getElementById('cDots').onchange=e=>{ P.dots=e.target.checked; };
-function setShape(s){ P.shape=s; ['shpRel','shpCube','shpCyl'].forEach((id,i)=>document.getElementById(id).classList.toggle('on',i===s)); }
+function setShape(s){ P.shape=s; ['shpRel','shpCube','shpCyl','shpSph'].forEach((id,i)=>document.getElementById(id).classList.toggle('on',i===s)); }
 document.getElementById('shpRel').onclick=()=>setShape(0);
 document.getElementById('shpCube').onclick=()=>setShape(1);
 document.getElementById('shpCyl').onclick=()=>setShape(2);
+document.getElementById('shpSph').onclick=()=>setShape(3);
 cv.addEventListener('click',e=>{ const r=cv.getBoundingClientRect(); const x=(e.clientX-r.left)*(CW/r.width), y=(e.clientY-r.top)*(CH/r.height);
   let panel=-1; if(y>=PANY[0]&&y<=PANY[0]+PH)panel=0; else if(y>=PANY[1]&&y<=PANY[1]+PH)panel=1; if(panel<0) return;
   addParticles(4000, x, y-PANY[panel]); });
