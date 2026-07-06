@@ -76,12 +76,12 @@ const COLS_MAX=Math.ceil(PW/CELL_MIN), ROWS_MAX=Math.ceil(PH/CELL_MIN), NCELLS_M
 
 let P={ N:80000, F:0.08, D:0.08, R:16, K:0.12, V:2.7, running:true, ballR:1.8, maxV:4.0, wall:0.85, omega:0.06 };
 
-const PHYS=`struct P { n:u32,cols:u32,rows:u32,cap:u32, ww:f32,wh:f32,cell:f32,radius:f32,
+const PHYS=`struct Par { n:u32,cols:u32,rows:u32,cap:u32, ww:f32,wh:f32,cell:f32,radius:f32,
   ballR:f32,force:f32,coupling:f32,damping:f32, maxV:f32,wall:f32,omega:f32,mode:u32 };`;
 const RU=`struct RU { ww:f32,wh:f32,dcols:u32,drows:u32, dcell:f32,pointSize:f32,n:u32,intensity:f32 };`;
 
 const BUILD=PHYS+`
-@group(0) @binding(0) var<uniform> P: P;
+@group(0) @binding(0) var<uniform> P: Par;
 @group(0) @binding(1) var<storage, read> pos: array<vec2<f32>>;
 @group(0) @binding(2) var<storage, read_write> gc: array<atomic<u32>>;
 @group(0) @binding(3) var<storage, read_write> gi: array<u32>;
@@ -93,7 +93,7 @@ const BUILD=PHYS+`
 }`;
 
 const SIM=PHYS+`
-@group(0) @binding(0) var<uniform> P: P;
+@group(0) @binding(0) var<uniform> P: Par;
 @group(0) @binding(1) var<storage, read> posIn: array<vec2<f32>>;
 @group(0) @binding(2) var<storage, read> velIn: array<vec2<f32>>;
 @group(0) @binding(3) var<storage, read> phIn: array<f32>;
