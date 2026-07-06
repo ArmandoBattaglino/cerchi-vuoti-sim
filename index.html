@@ -56,7 +56,7 @@
     <div class="row"><label>Palline alla nascita</label><input id="sN" type="range" min="4" max="8000" value="500"><span class="val" id="vN">500</span></div>
     <div class="row"><label>Forza della spinta</label><input id="sF" type="range" min="1" max="20" value="6"><span class="val" id="vF">0.06</span></div>
     <div class="row"><label>Attrito</label><input id="sD" type="range" min="0" max="30" value="6"><span class="val" id="vD">0.06</span></div>
-    <div class="row"><label>Raggio d'interazione</label><input id="sR" type="range" min="16" max="200" value="60"><span class="val" id="vR">60</span></div>
+    <div class="row"><label>Raggio d'interazione</label><input id="sR" type="range" min="10" max="200" value="26"><span class="val" id="vR">26</span></div>
     <div class="row"><label>Accoppiamento (sync S2)</label><input id="sK" type="range" min="0" max="20" value="7"><span class="val" id="vK">0.07</span></div>
     <div class="row"><label>Intensità vuoti (S3/S4)</label><input id="sV" type="range" min="1" max="20" value="10"><span class="val" id="vV">1.0</span></div>
     <div class="row"><label>Risoluzione vuoti</label><input id="sRes" type="range" min="10" max="500" value="140"><span class="val" id="vRes">140</span></div>
@@ -109,7 +109,7 @@ const vcv=document.createElement('canvas'), vctx=vcv.getContext('2d');
 const b1={x0:0,y0:18,x1:560,y1:218}, b2={x0:0,y0:244,x1:560,y1:444},
       b3={x0:0,y0:470,x1:560,y1:670}, b4={x0:0,y0:696,x1:560,y1:896};
 
-let P={ F:0.06, D:0.06, R:60, k:0.42, maxV:3.6, wall:0.85, rad:6, N:500, K:0.07, V:1.0, cols:140 };
+let P={ F:0.06, D:0.06, R:26, k:0.42, maxV:3.6, wall:0.85, rad:6, N:500, K:0.07, V:1.0, cols:140 };
 const MAXN=60000, INF=1e9;
 
 function makeSys(isGoal){ return { isGoal, n:0,
