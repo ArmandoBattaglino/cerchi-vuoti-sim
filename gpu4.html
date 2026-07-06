@@ -51,8 +51,8 @@
       <div class="lab" style="top:218px">S2 · frequenza (nessun obiettivo)</div>
       <div class="lab" style="top:432px">S3 · vuoti di S2</div>
       <div class="lab" style="top:646px">S4 · vuoti di S1</div>
-      <div class="lab" style="top:858px">Olografico · vuoti di S2 (parallelepipedo)</div>
-      <div class="lab" style="top:1092px">Olografico · vuoti di S1 (parallelepipedo)</div>
+      <div class="lab" style="top:858px">Forma · vuoti di S2 (rilievo / cubo / cilindro)</div>
+      <div class="lab" style="top:1092px">Forma · vuoti di S1 (rilievo / cubo / cilindro)</div>
     </div>
     <div class="err" id="err"></div>
   </div>
@@ -69,6 +69,13 @@
     <label class="chk"><input type="checkbox" id="cFilter"> Filtro spostamenti (colore opposto)</label>
     <label class="chk"><input type="checkbox" id="cGlow"> Frequenza scambi (bagliore)</label>
     <label class="chk"><input type="checkbox" id="cDots"> Palline di riferimento in S3/S4</label>
+
+    <div style="color:var(--dim);font-size:12px;margin-top:10px">Forma dei vuoti (pannelli in fondo)</div>
+    <div class="seg">
+      <button id="shpRel">Rilievo</button>
+      <button id="shpCube">Cubo</button>
+      <button id="shpCyl" class="on">Cilindro</button>
+    </div>
 
     <div class="btns">
       <button id="bPlay" class="primary">Pausa</button>
@@ -112,7 +119,7 @@ const CW=720,CH=1326,PW=720,PH=180,PANY=[20,234,448,662],PH_R=200,PANY5=[876,111
 const MAXN=300000,CAP=48,CELL_MIN=10,DCOLS_MAX=560,DROWS_MAX=140,NDENS_MAX=DCOLS_MAX*DROWS_MAX;
 const COLS_MAX=Math.ceil(PW/CELL_MIN),ROWS_MAX=Math.ceil(PH/CELL_MIN),NCM=COLS_MAX*ROWS_MAX;
 const STEPS=[512,256,128,64,32,16,8,4,2,1], REF=16.0;
-let P={ N:30000,F:0.08,D:0.08,R:16,K:0.12,V:2.7,dcols:400,drows:100,filter:false,glow:false,dots:false,shape:1,running:true,ballR:1.8,maxV:4.0,wall:0.85,omega:0.06 };
+let P={ N:30000,F:0.08,D:0.08,R:16,K:0.12,V:2.7,dcols:400,drows:100,filter:false,glow:false,dots:false,shape:2,running:true,ballR:1.8,maxV:4.0,wall:0.85,omega:0.06 };
 
 const PHYS=`struct Par { n:u32,cols:u32,rows:u32,cap:u32, ww:f32,wh:f32,cell:f32,radius:f32, ballR:f32,force:f32,coupling:f32,damping:f32, maxV:f32,wall:f32,omega:f32,mode:u32 };`;
 const RU=`struct RU { ww:f32,wh:f32,dcols:u32,drows:u32, dcell:f32,pointSize:f32,n:u32,intensity:f32, flags:u32,pa:u32,pb:u32,pc:u32 };`;
@@ -265,26 +272,43 @@ fn rot(p:vec3<f32>)->vec3<f32>{ let ca=cos(L.angle); let sa=sin(L.angle);
   let x1=p.x*ca-p.z*sa; let z1=p.x*sa+p.z*ca; let cp=cos(0.62); let sp=sin(0.62);
   let y2=p.y*cp-z1*sp; let z2=p.y*sp+z1*cp; return vec3<f32>(x1,y2,z2); }
 @vertex fn vs(@builtin(vertex_index) vi:u32)->VO{
-  let rc=L.rcols; let per=(rc-1u)*(rc-1u)*6u; let face=vi/per; let li=vi%per;
+  let rc=L.rcols; let per=(rc-1u)*(rc-1u)*6u; let part=vi/per; let li=vi%per;
   let quad=li/6u; let corner=li%6u; let qx=quad%(rc-1u); let qy=quad/(rc-1u);
   var ox=0u; var oy=0u;
   if(corner==1u){ox=1u;} else if(corner==2u){oy=1u;} else if(corner==3u){oy=1u;} else if(corner==4u){ox=1u;} else if(corner==5u){ox=1u;oy=1u;}
   let gx=qx+ox; let gy=qy+oy; let u=f32(gx)/f32(rc-1u); let v=f32(gy)/f32(rc-1u);
-  let sgx=i32(u*f32(L.dcols)); let sgy=i32(v*f32(L.drows)); let h=vAt(sgx,sgy);
-  var Ns=array<vec3<f32>,6>(vec3<f32>(1.0,0.0,0.0),vec3<f32>(-1.0,0.0,0.0),vec3<f32>(0.0,1.0,0.0),vec3<f32>(0.0,-1.0,0.0),vec3<f32>(0.0,0.0,1.0),vec3<f32>(0.0,0.0,-1.0));
-  var Us=array<vec3<f32>,6>(vec3<f32>(0.0,0.0,1.0),vec3<f32>(0.0,0.0,-1.0),vec3<f32>(1.0,0.0,0.0),vec3<f32>(1.0,0.0,0.0),vec3<f32>(-1.0,0.0,0.0),vec3<f32>(1.0,0.0,0.0));
-  var Vs=array<vec3<f32>,6>(vec3<f32>(0.0,1.0,0.0),vec3<f32>(0.0,1.0,0.0),vec3<f32>(0.0,0.0,1.0),vec3<f32>(0.0,0.0,-1.0),vec3<f32>(0.0,1.0,0.0),vec3<f32>(0.0,1.0,0.0));
-  let N=Ns[face]; let TU=Us[face]; let TV=Vs[face];
-  let E=vec3<f32>(0.72,0.18,0.36);
-  let eN=abs(N.x)*E.x+abs(N.y)*E.y+abs(N.z)*E.z;
-  let eU=abs(TU.x)*E.x+abs(TU.y)*E.y+abs(TU.z)*E.z;
-  let eV=abs(TV.x)*E.x+abs(TV.y)*E.y+abs(TV.z)*E.z;
-  let hx=vAt(sgx+2,sgy)-vAt(sgx-2,sgy); let hz=vAt(sgx,sgy+2)-vAt(sgx,sgy-2);
-  let pos=N*eN + (u-0.5)*2.0*eU*TU + (v-0.5)*2.0*eV*TV + N*h*(0.14*L.hscale);
-  let nrm=normalize(N - TU*hx*2.5 - TV*hz*2.5);
+  var pos:vec3<f32>; var nrm:vec3<f32>; var h:f32; var sx=0.42; var sy=1.5;
+  if(L.shape==0u){
+    let sgx=i32(u*f32(L.dcols)); let sgy=i32(v*f32(L.drows)); h=vAt(sgx,sgy);
+    let hx=vAt(sgx+2,sgy)-vAt(sgx-2,sgy); let hz=vAt(sgx,sgy+2)-vAt(sgx,sgy-2);
+    pos=vec3<f32>((u-0.5)*2.6,(h-0.35)*L.hscale,(v-0.5)*0.9);
+    nrm=normalize(vec3<f32>(-hx*4.0,1.0,-hz*4.0)); sx=0.30; sy=0.85;
+  } else if(L.shape==1u){
+    var Ns=array<vec3<f32>,6>(vec3<f32>(1.0,0.0,0.0),vec3<f32>(-1.0,0.0,0.0),vec3<f32>(0.0,1.0,0.0),vec3<f32>(0.0,-1.0,0.0),vec3<f32>(0.0,0.0,1.0),vec3<f32>(0.0,0.0,-1.0));
+    var Us=array<vec3<f32>,6>(vec3<f32>(0.0,0.0,1.0),vec3<f32>(0.0,0.0,-1.0),vec3<f32>(1.0,0.0,0.0),vec3<f32>(1.0,0.0,0.0),vec3<f32>(-1.0,0.0,0.0),vec3<f32>(1.0,0.0,0.0));
+    var Vs=array<vec3<f32>,6>(vec3<f32>(0.0,1.0,0.0),vec3<f32>(0.0,1.0,0.0),vec3<f32>(0.0,0.0,1.0),vec3<f32>(0.0,0.0,-1.0),vec3<f32>(0.0,1.0,0.0),vec3<f32>(0.0,1.0,0.0));
+    let N=Ns[part]; let TU=Us[part]; let TV=Vs[part];
+    let sgx=i32(u*f32(L.dcols)); let sgy=i32(v*f32(L.drows)); h=vAt(sgx,sgy);
+    let hx=vAt(sgx+2,sgy)-vAt(sgx-2,sgy); let hz=vAt(sgx,sgy+2)-vAt(sgx,sgy-2);
+    pos=N*0.42 + (u-0.5)*TU + (v-0.5)*TV + N*h*(0.20*L.hscale);
+    nrm=normalize(N - TU*hx*2.5 - TV*hz*2.5); sx=0.50; sy=1.4;
+  } else {
+    let R=0.42; let H=0.6; let PI2=6.28318;
+    if(part==1u){
+      let th=u*PI2; let yy=(v-0.5)*H;
+      let sgx=i32(u*f32(L.dcols)); let sgy=i32(v*f32(L.drows)); h=vAt(sgx,sgy);
+      let rad=R + h*(0.14*L.hscale);
+      pos=vec3<f32>(rad*cos(th),yy,rad*sin(th)); nrm=normalize(vec3<f32>(cos(th),0.0,sin(th)));
+    } else {
+      let ang=v*PI2; let rr=u; let cxx=cos(ang)*rr; let czz=sin(ang)*rr;
+      let sgx=i32((cxx+1.0)*0.5*f32(L.dcols)); let sgy=i32((czz+1.0)*0.5*f32(L.drows)); h=vAt(sgx,sgy);
+      let sign=select(-1.0,1.0,part==2u);
+      pos=vec3<f32>(cxx*R, sign*(H*0.5)+sign*h*(0.12*L.hscale), czz*R); nrm=vec3<f32>(0.0,sign,0.0);
+    }
+  }
   let pp=rot(pos); let pn=rot(nrm);
   let lit=clamp(dot(normalize(pn),normalize(vec3<f32>(0.35,0.8,0.45))),0.2,1.0);
-  var o:VO; o.clip=vec4<f32>(pp.x*0.50,pp.y*1.7,pp.z*0.13+0.5,1.0);
+  var o:VO; o.clip=vec4<f32>(pp.x*sx,pp.y*sy,pp.z*0.13+0.5,1.0);
   o.col=vec3<f32>(0.30,0.85,0.72)*(0.25+h*0.9)*lit; return o; }
 @fragment fn fs(i:VO)->@location(0) vec4<f32>{ return vec4<f32>(i.col,1.0); }`;
 
@@ -397,7 +421,7 @@ function frame(t){
     rp.end();
     // rilievi 3D (pass separato con depth)
     { const lu=new Uint32Array(rluAB),lf=new Float32Array(rluAB); lu[0]=P.dcols;lu[1]=P.drows;lu[2]=RCOLS;lu[3]=RROWS;lf[4]=t*0.0004;lf[5]=1.3;lf[6]=16.0;lu[7]=P.shape; device.queue.writeBuffer(rluBuf,0,rluAB); }
-    const drawN=RVCOUNT;
+    const drawN=P.shape===0?PERFACE:(P.shape===1?RVCOUNT:3*PERFACE);
     const rp2=enc.beginRenderPass({colorAttachments:[{view,loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:depthTex.createView(),depthClearValue:1.0,depthLoadOp:'clear',depthStoreOp:'store'}});
     rp2.setPipeline(pipes.relief);
     rp2.setViewport(0,PANY5[0],PW,PH_R,0,1); rp2.setBindGroup(0,BG.relief[1]); rp2.draw(drawN);
@@ -443,6 +467,10 @@ document.getElementById('bAdd').onclick=()=>addParticles(20000,null,null);
 document.getElementById('cFilter').onchange=e=>{ P.filter=e.target.checked; };
 document.getElementById('cGlow').onchange=e=>{ P.glow=e.target.checked; };
 document.getElementById('cDots').onchange=e=>{ P.dots=e.target.checked; };
+function setShape(s){ P.shape=s; ['shpRel','shpCube','shpCyl'].forEach((id,i)=>document.getElementById(id).classList.toggle('on',i===s)); }
+document.getElementById('shpRel').onclick=()=>setShape(0);
+document.getElementById('shpCube').onclick=()=>setShape(1);
+document.getElementById('shpCyl').onclick=()=>setShape(2);
 cv.addEventListener('click',e=>{ const r=cv.getBoundingClientRect(); const x=(e.clientX-r.left)*(CW/r.width), y=(e.clientY-r.top)*(CH/r.height);
   let panel=-1; if(y>=PANY[0]&&y<=PANY[0]+PH)panel=0; else if(y>=PANY[1]&&y<=PANY[1]+PH)panel=1; if(panel<0) return;
   addParticles(4000, x, y-PANY[panel]); });
