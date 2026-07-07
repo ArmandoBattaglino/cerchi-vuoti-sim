@@ -64,7 +64,7 @@
     <div class="row"><label>Raggio d'interazione</label><input id="sR" type="range" min="3" max="120" step="0.25" value="16"><span class="val" id="vR">16.0</span></div>
     <div class="row"><label>Accoppiamento (sync S2)</label><input id="sK" type="range" min="0" max="60" step="0.25" value="12"><span class="val" id="vK">0.120</span></div>
     <div class="row"><label>Intensità vuoti</label><input id="sV" type="range" min="1" max="40" step="0.25" value="8"><span class="val" id="vV">2.67</span></div>
-    <div class="row"><label>Risoluzione vuoti</label><input id="sRes" type="range" min="40" max="4000" step="10" value="400"><span class="val" id="vRes">400</span></div>
+    <div class="row"><label>Risoluzione vuoti</label><input id="sRes" type="range" min="40" max="8000" step="20" value="400"><span class="val" id="vRes">400</span></div>
 
     <label class="chk"><input type="checkbox" id="cFilter"> Filtro spostamenti (colore opposto)</label>
     <label class="chk"><input type="checkbox" id="cGlow"> Frequenza scambi (bagliore)</label>
@@ -117,9 +117,9 @@ const sp=[document.getElementById('sp1').getContext('2d'),document.getElementByI
 const hist=[[],[],[],[],[]]; // dist, sync, overlap, v1, v2
 
 const CW=720,CH=1326,PW=720,PH=180,PANY=[20,234,448,662],PH_R=200,PANY5=[876,1110],RCOLS=96,RROWS=96,PERFACE=(RCOLS-1)*(RCOLS-1)*6,RVCOUNT=6*PERFACE;
-const MAXN=1000000,CAP=48,CELL_MIN=10,DCOLS_MAX=4000,DROWS_MAX=1000,NDENS_MAX=DCOLS_MAX*DROWS_MAX;
+const MAXN=1000000,CAP=48,CELL_MIN=10,DCOLS_MAX=8000,DROWS_MAX=2000,NDENS_MAX=DCOLS_MAX*DROWS_MAX;
 const COLS_MAX=Math.ceil(PW/CELL_MIN),ROWS_MAX=Math.ceil(PH/CELL_MIN),NCM=COLS_MAX*ROWS_MAX;
-const STEPS=[2048,1024,512,256,128,64,32,16,8,4,2,1], REF=16.0;
+const STEPS=[4096,2048,1024,512,256,128,64,32,16,8,4,2,1], REF=16.0;
 let P={ N:30000,F:0.08,D:0.08,R:16,K:0.12,V:2.7,dcols:400,drows:100,filter:false,glow:false,dots:false,shape:2,running:true,ballR:1.8,maxV:4.0,wall:0.85,omega:0.06 };
 
 const PHYS=`struct Par { n:u32,cols:u32,rows:u32,cap:u32, ww:f32,wh:f32,cell:f32,radius:f32, ballR:f32,force:f32,coupling:f32,damping:f32, maxV:f32,wall:f32,omega:f32,mode:u32 };`;
@@ -186,16 +186,16 @@ const JINIT=JU+`
 @group(0) @binding(0) var<uniform> J: JU;
 @group(0) @binding(1) var<storage,read> dens: array<u32>;
 @group(0) @binding(2) var<storage,read_write> seed: array<u32>;
-@compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3<u32>){
-  let i=g.x; let tot=J.dcols*J.drows; if(i>=tot){return;}
+@compute @workgroup_size(64) fn main(@builtin(workgroup_id) wid:vec3<u32>,@builtin(num_workgroups) nwg:vec3<u32>,@builtin(local_invocation_index) lid:u32){
+  let i=(wid.y*nwg.x+wid.x)*64u+lid; let tot=J.dcols*J.drows; if(i>=tot){return;}
   if(dens[i]>0u){ seed[i]=i; } else { seed[i]=0xffffffffu; } }`;
 
 const JSTEP=JU+`
 @group(0) @binding(0) var<uniform> J: JU;
 @group(0) @binding(1) var<storage,read> sIn: array<u32>;
 @group(0) @binding(2) var<storage,read_write> sOut: array<u32>;
-@compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3<u32>){
-  let i=g.x; let tot=J.dcols*J.drows; if(i>=tot){return;}
+@compute @workgroup_size(64) fn main(@builtin(workgroup_id) wid:vec3<u32>,@builtin(num_workgroups) nwg:vec3<u32>,@builtin(local_invocation_index) lid:u32){
+  let i=(wid.y*nwg.x+wid.x)*64u+lid; let tot=J.dcols*J.drows; if(i>=tot){return;}
   let cx=i32(i%J.dcols); let cy=i32(i/J.dcols); let st=i32(J.step);
   var best=sIn[i]; var bestD=3.0e9;
   if(best!=0xffffffffu){ let sx=i32(best%J.dcols); let sy=i32(best/J.dcols); let dx=f32(cx-sx); let dy=f32(cy-sy); bestD=dx*dx+dy*dy; }
@@ -210,8 +210,8 @@ const VREDUCE=JU+`
 @group(0) @binding(0) var<uniform> J: JU;
 @group(0) @binding(1) var<storage,read> seed: array<u32>;
 @group(0) @binding(2) var<storage,read_write> stat: array<atomic<u32>>;
-@compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3<u32>){
-  let i=g.x; let tot=J.dcols*J.drows; if(i>=tot){return;}
+@compute @workgroup_size(64) fn main(@builtin(workgroup_id) wid:vec3<u32>,@builtin(num_workgroups) nwg:vec3<u32>,@builtin(local_invocation_index) lid:u32){
+  let i=(wid.y*nwg.x+wid.x)*64u+lid; let tot=J.dcols*J.drows; if(i>=tot){return;}
   let cx=i32(i%J.dcols); let cy=i32(i/J.dcols); let s=seed[i]; var dist=J.rf*2.0;
   if(s!=0xffffffffu){ let sx=i32(s%J.dcols); let sy=i32(s/J.dcols); dist=sqrt(f32((cx-sx)*(cx-sx)+(cy-sy)*(cy-sy))); }
   let e=clamp(dist/J.rf,0.0,1.0); atomicAdd(&stat[0], u32(e*1000.0)); }`;
@@ -397,7 +397,7 @@ let frames=0,fpsT=0;
 function frame(t){
   if(P.running&&device){
     writeUniforms();
-    const N=P.N, NDENS=P.dcols*P.drows, wg=Math.ceil(N/64), wgc=Math.ceil(NDENS/64), ncell=grid.cols*grid.rows;
+    const N=P.N, NDENS=P.dcols*P.drows, wg=Math.ceil(N/64), wgc=Math.ceil(NDENS/64), gcx=Math.min(wgc,32768), gcy=Math.ceil(wgc/gcx), ncell=grid.cols*grid.rows;
     // overlap BG dipende da cur (pos[0][1-cur])
     BG.ov=device.createBindGroup({layout:pipes.ov.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:ruBuf}},{binding:1,resource:{buffer:pos[0][1-cur]}},{binding:2,resource:{buffer:seedBuf[1][0]}},{binding:3,resource:{buffer:ovBuf}}]});
     const enc=device.createCommandEncoder();
@@ -410,9 +410,9 @@ function frame(t){
     // vuoti: densità → jfa init → 8 step → reduce
     for(let s=0;s<2;s++){ enc.clearBuffer(densBuf[s]); enc.clearBuffer(vstatBuf[s]);
       let p=enc.beginComputePass();p.setPipeline(pipes.dens);p.setBindGroup(0,BG.dens[s][cur]);p.dispatchWorkgroups(wg);p.end();
-      p=enc.beginComputePass();p.setPipeline(pipes.jinit);p.setBindGroup(0,BG.jinit[s]);p.dispatchWorkgroups(wgc);p.end();
-      for(let k=0;k<STEPS.length;k++){ p=enc.beginComputePass();p.setPipeline(pipes.jstep);p.setBindGroup(0,BG.jstep[s][k]);p.dispatchWorkgroups(wgc);p.end(); }
-      p=enc.beginComputePass();p.setPipeline(pipes.vred);p.setBindGroup(0,BG.vred[s]);p.dispatchWorkgroups(wgc);p.end(); }
+      p=enc.beginComputePass();p.setPipeline(pipes.jinit);p.setBindGroup(0,BG.jinit[s]);p.dispatchWorkgroups(gcx,gcy);p.end();
+      for(let k=0;k<STEPS.length;k++){ p=enc.beginComputePass();p.setPipeline(pipes.jstep);p.setBindGroup(0,BG.jstep[s][k]);p.dispatchWorkgroups(gcx,gcy);p.end(); }
+      p=enc.beginComputePass();p.setPipeline(pipes.vred);p.setBindGroup(0,BG.vred[s]);p.dispatchWorkgroups(gcx,gcy);p.end(); }
     // overlap: S1 particelle vs vuoti S2 (seedBuf[1][0])
     { let p=enc.beginComputePass();p.setPipeline(pipes.ov);p.setBindGroup(0,BG.ov);p.dispatchWorkgroups(wg);p.end(); }
     // render 4 pannelli
