@@ -58,13 +58,13 @@
   </div>
 
   <div class="panel">
-    <div class="row"><label>Particelle (per sistema)</label><input id="sN" type="range" min="2000" max="300000" step="2000" value="30000"><span class="val" id="vN">30k</span></div>
-    <div class="row"><label>Forza della spinta</label><input id="sF" type="range" min="1" max="40" value="8"><span class="val" id="vF">0.08</span></div>
-    <div class="row"><label>Attrito</label><input id="sD" type="range" min="0" max="40" value="8"><span class="val" id="vD">0.08</span></div>
-    <div class="row"><label>Raggio d'interazione</label><input id="sR" type="range" min="6" max="48" value="16"><span class="val" id="vR">16</span></div>
-    <div class="row"><label>Accoppiamento (sync S2)</label><input id="sK" type="range" min="0" max="30" value="12"><span class="val" id="vK">0.12</span></div>
-    <div class="row"><label>Intensità vuoti</label><input id="sV" type="range" min="1" max="20" value="8"><span class="val" id="vV">2.7</span></div>
-    <div class="row"><label>Risoluzione vuoti</label><input id="sRes" type="range" min="80" max="560" step="40" value="400"><span class="val" id="vRes">400</span></div>
+    <div class="row"><label>Particelle (per sistema)</label><input id="sN" type="range" min="200" max="1000000" step="200" value="30000"><span class="val" id="vN">30k</span></div>
+    <div class="row"><label>Forza della spinta</label><input id="sF" type="range" min="0" max="120" value="8"><span class="val" id="vF">0.08</span></div>
+    <div class="row"><label>Attrito</label><input id="sD" type="range" min="0" max="95" value="8"><span class="val" id="vD">0.08</span></div>
+    <div class="row"><label>Raggio d'interazione</label><input id="sR" type="range" min="3" max="120" value="16"><span class="val" id="vR">16</span></div>
+    <div class="row"><label>Accoppiamento (sync S2)</label><input id="sK" type="range" min="0" max="60" value="12"><span class="val" id="vK">0.12</span></div>
+    <div class="row"><label>Intensità vuoti</label><input id="sV" type="range" min="1" max="40" value="8"><span class="val" id="vV">2.7</span></div>
+    <div class="row"><label>Risoluzione vuoti</label><input id="sRes" type="range" min="40" max="800" step="20" value="400"><span class="val" id="vRes">400</span></div>
 
     <label class="chk"><input type="checkbox" id="cFilter"> Filtro spostamenti (colore opposto)</label>
     <label class="chk"><input type="checkbox" id="cGlow"> Frequenza scambi (bagliore)</label>
@@ -117,7 +117,7 @@ const sp=[document.getElementById('sp1').getContext('2d'),document.getElementByI
 const hist=[[],[],[],[],[]]; // dist, sync, overlap, v1, v2
 
 const CW=720,CH=1326,PW=720,PH=180,PANY=[20,234,448,662],PH_R=200,PANY5=[876,1110],RCOLS=40,RROWS=40,PERFACE=(RCOLS-1)*(RCOLS-1)*6,RVCOUNT=6*PERFACE;
-const MAXN=300000,CAP=48,CELL_MIN=10,DCOLS_MAX=560,DROWS_MAX=140,NDENS_MAX=DCOLS_MAX*DROWS_MAX;
+const MAXN=1000000,CAP=48,CELL_MIN=10,DCOLS_MAX=800,DROWS_MAX=200,NDENS_MAX=DCOLS_MAX*DROWS_MAX;
 const COLS_MAX=Math.ceil(PW/CELL_MIN),ROWS_MAX=Math.ceil(PH/CELL_MIN),NCM=COLS_MAX*ROWS_MAX;
 const STEPS=[512,256,128,64,32,16,8,4,2,1], REF=16.0;
 let P={ N:30000,F:0.08,D:0.08,R:16,K:0.12,V:2.7,dcols:400,drows:100,filter:false,glow:false,dots:false,shape:2,running:true,ballR:1.8,maxV:4.0,wall:0.85,omega:0.06 };
