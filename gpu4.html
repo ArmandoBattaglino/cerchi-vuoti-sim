@@ -321,10 +321,10 @@ fn rot(p:vec3<f32>)->vec3<f32>{ let ca=cos(L.angle); let sa=sin(L.angle);
     let sgx=i32(u*f32(L.dcols)); let sgy=i32(v*f32(L.drows)); h=vAt(sgx,sgy);
     let sph=vec3<f32>(sin(ph)*cos(th),cos(ph),sin(ph)*sin(th));
     if(part==2u){
-      let bx=0.30; let bt=0.09+h*(0.12*L.hscale);
-      pos=vec3<f32>(sph.x*bx,sph.y*bt,sph.z*bt); nrm=normalize(vec3<f32>(sph.x/bx,sph.y/bt,sph.z/bt)); glow=1.7;
+      let bx=0.34; let bt=0.11+h*(0.13*L.hscale);
+      pos=vec3<f32>(sph.x*bx,sph.y*bt,sph.z*bt); nrm=normalize(vec3<f32>(sph.x/bx,sph.y/bt,sph.z/bt)); glow=1.8;
     } else {
-      let off=select(-0.26,0.26,part==1u); let rad=0.30+h*(0.10*L.hscale);
+      let off=select(-0.36,0.36,part==1u); let rad=0.26+h*(0.09*L.hscale);
       pos=rad*sph+vec3<f32>(off,0.0,0.0); nrm=sph;
     }
     sx=0.32; sy=1.2;
