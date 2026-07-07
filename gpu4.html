@@ -58,13 +58,13 @@
   </div>
 
   <div class="panel">
-    <div class="row"><label>Particelle (per sistema)</label><input id="sN" type="range" min="200" max="1000000" step="200" value="30000"><span class="val" id="vN">30k</span></div>
-    <div class="row"><label>Forza della spinta</label><input id="sF" type="range" min="0" max="120" value="8"><span class="val" id="vF">0.08</span></div>
-    <div class="row"><label>Attrito</label><input id="sD" type="range" min="0" max="95" value="8"><span class="val" id="vD">0.08</span></div>
-    <div class="row"><label>Raggio d'interazione</label><input id="sR" type="range" min="3" max="120" value="16"><span class="val" id="vR">16</span></div>
-    <div class="row"><label>Accoppiamento (sync S2)</label><input id="sK" type="range" min="0" max="60" value="12"><span class="val" id="vK">0.12</span></div>
-    <div class="row"><label>Intensità vuoti</label><input id="sV" type="range" min="1" max="40" value="8"><span class="val" id="vV">2.7</span></div>
-    <div class="row"><label>Risoluzione vuoti</label><input id="sRes" type="range" min="40" max="800" step="20" value="400"><span class="val" id="vRes">400</span></div>
+    <div class="row"><label>Particelle (per sistema)</label><input id="sN" type="range" min="200" max="1000000" step="100" value="30000"><span class="val" id="vN">30k</span></div>
+    <div class="row"><label>Forza della spinta</label><input id="sF" type="range" min="0" max="120" step="0.25" value="8"><span class="val" id="vF">0.080</span></div>
+    <div class="row"><label>Attrito</label><input id="sD" type="range" min="0" max="95" step="0.25" value="8"><span class="val" id="vD">0.080</span></div>
+    <div class="row"><label>Raggio d'interazione</label><input id="sR" type="range" min="3" max="120" step="0.25" value="16"><span class="val" id="vR">16.0</span></div>
+    <div class="row"><label>Accoppiamento (sync S2)</label><input id="sK" type="range" min="0" max="60" step="0.25" value="12"><span class="val" id="vK">0.120</span></div>
+    <div class="row"><label>Intensità vuoti</label><input id="sV" type="range" min="1" max="40" step="0.25" value="8"><span class="val" id="vV">2.67</span></div>
+    <div class="row"><label>Risoluzione vuoti</label><input id="sRes" type="range" min="40" max="800" step="10" value="400"><span class="val" id="vRes">400</span></div>
 
     <label class="chk"><input type="checkbox" id="cFilter"> Filtro spostamenti (colore opposto)</label>
     <label class="chk"><input type="checkbox" id="cGlow"> Frequenza scambi (bagliore)</label>
@@ -459,7 +459,7 @@ function frame(t){
 }
 
 function fmtN(n){ return n>=1000?(n/1000).toFixed(n>=100000?0:1)+'k':n; }
-function syncLabels(){ document.getElementById('vN').textContent=fmtN(P.N); document.getElementById('vF').textContent=P.F.toFixed(2); document.getElementById('vD').textContent=P.D.toFixed(2); document.getElementById('vR').textContent=P.R; document.getElementById('vK').textContent=P.K.toFixed(2); document.getElementById('vV').textContent=P.V.toFixed(1); document.getElementById('vRes').textContent=P.dcols; document.getElementById('mCount').textContent=fmtN(P.N); }
+function syncLabels(){ document.getElementById('vN').textContent=fmtN(P.N); document.getElementById('vF').textContent=P.F.toFixed(3); document.getElementById('vD').textContent=P.D.toFixed(3); document.getElementById('vR').textContent=P.R.toFixed(1); document.getElementById('vK').textContent=P.K.toFixed(3); document.getElementById('vV').textContent=P.V.toFixed(2); document.getElementById('vRes').textContent=P.dcols; document.getElementById('mCount').textContent=fmtN(P.N); }
 function addParticles(count,lx,ly){ if(!device) return; const start=P.N,end=Math.min(MAXN,start+count),n=end-start; if(n<=0) return;
   for(let s=0;s<2;s++){ const po=new Float32Array(n*2),vl=new Float32Array(n*2),pa=new Float32Array(n),tg=new Float32Array(n*2);
     for(let i=0;i<n;i++){ let x,y; if(lx!=null){ x=lx+(Math.random()-0.5)*70; y=ly+(Math.random()-0.5)*70; } else { x=Math.random()*PW; y=Math.random()*PH; }
