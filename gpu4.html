@@ -267,7 +267,7 @@ struct VO{ @builtin(position) clip:vec4<f32>, @location(0) uv:vec2<f32> };
   return vec4<f32>(0.37*e,0.88*e,0.75*e,1.0); }`;
 
 const RELIEF=`
-struct RLU { dcols:u32,drows:u32,rcols:u32,rrows:u32, angle:f32,hscale:f32,rf:f32,shape:u32 };
+struct RLU { dcols:u32,drows:u32,rcols:u32,rrows:u32, angle:f32,hscale:f32,rf:f32,shape:u32, uA:f32,uB:f32,uBond:f32,uPulse:f32 };
 @group(0) @binding(0) var<uniform> L: RLU;
 @group(0) @binding(1) var<storage,read> seed: array<u32>;
 struct VO{ @builtin(position) clip:vec4<f32>, @location(0) col:vec3<f32> };
@@ -317,15 +317,19 @@ fn rot(p:vec3<f32>)->vec3<f32>{ let ca=cos(L.angle); let sa=sin(L.angle);
     let sph=vec3<f32>(sin(ph)*cos(th),cos(ph),sin(ph)*sin(th));
     pos=rad*sph; nrm=sph;
   } else {
+    // COVALENTE: misuratore vivo dell'accoppiamento. Niente vuoti.
+    // atomo A=interazioni medie S1, atomo B=interazioni medie S2, ponte=frequenza di scambio (spessore+glow, e pulsa).
     let th=u*6.28318; let ph=v*3.14159;
-    let sgx=i32(u*f32(L.dcols)); let sgy=i32(v*f32(L.drows)); h=vAt(sgx,sgy);
     let sph=vec3<f32>(sin(ph)*cos(th),cos(ph),sin(ph)*sin(th));
     if(part==2u){
-      let bx=0.34; let bt=0.11+h*(0.13*L.hscale);
-      pos=vec3<f32>(sph.x*bx,sph.y*bt,sph.z*bt); nrm=normalize(vec3<f32>(sph.x/bx,sph.y/bt,sph.z/bt)); glow=1.8;
+      let bx=0.34; let bt=(0.06+0.16*L.uBond)*L.uPulse;
+      pos=vec3<f32>(sph.x*bx,sph.y*bt,sph.z*bt); nrm=normalize(vec3<f32>(sph.x/bx,sph.y/bt,sph.z/bt));
+      h=L.uBond; glow=1.4+1.3*L.uBond;
     } else {
-      let off=select(-0.36,0.36,part==1u); let rad=0.26+h*(0.09*L.hscale);
+      let uu=select(L.uA,L.uB,part==1u);
+      let off=select(-0.36,0.36,part==1u); let rad=0.15+0.24*uu;
       pos=rad*sph+vec3<f32>(off,0.0,0.0); nrm=sph;
+      h=uu; glow=1.0+0.7*uu;
     }
     sx=0.32; sy=1.2;
   }
@@ -341,8 +345,9 @@ let physBuf=[],ruBuf,ruDotBuf,rluBuf,zBufS3,zBufS4,zBufLoupe,depthTex,juBuf=[],g
 let pos=[[],[]],vel=[[],[]],ph=[[],[]],tgt=[],densBuf=[],seedBuf=[[],[]],accBuf=[],vstatBuf=[],ovBuf,exBuf=[];
 let pipes={}, BG={};
 let cur=0,grid={cols:1,rows:1,cell:16};
-const physAB=[new ArrayBuffer(64),new ArrayBuffer(64)], ruAB=new ArrayBuffer(48), ruDotAB=new ArrayBuffer(48), rluAB=new ArrayBuffer(32);
+const physAB=[new ArrayBuffer(64),new ArrayBuffer(64)], ruAB=new ArrayBuffer(48), ruDotAB=new ArrayBuffer(48), rluAB=new ArrayBuffer(48);
 let stag=[], mapping=false;
+let covA=0,covB=0,covBond=0,peakA=1e-6,peakB=1e-6,bondPhase=0,lastFT=0;
 
 async function initGPU(){
   if(!('gpu' in navigator)){ fail("Browser senza WebGPU (usa Chrome/Edge recenti)."); return false; }
@@ -355,7 +360,7 @@ async function initGPU(){
   try{ document.getElementById('gpuName').textContent=(adapter.info&&(adapter.info.description||adapter.info.vendor))||'GPU'; }catch(e){}
   ctx=cv.getContext('webgpu'); format=navigator.gpu.getPreferredCanvasFormat(); ctx.configure({device,format,alphaMode:'opaque'});
   const U=GPUBufferUsage, S=(sz,u)=>device.createBuffer({size:sz,usage:u});
-  physBuf=[S(64,U.UNIFORM|U.COPY_DST),S(64,U.UNIFORM|U.COPY_DST)]; ruBuf=S(48,U.UNIFORM|U.COPY_DST); ruDotBuf=S(48,U.UNIFORM|U.COPY_DST); rluBuf=S(32,U.UNIFORM|U.COPY_DST);
+  physBuf=[S(64,U.UNIFORM|U.COPY_DST),S(64,U.UNIFORM|U.COPY_DST)]; ruBuf=S(48,U.UNIFORM|U.COPY_DST); ruDotBuf=S(48,U.UNIFORM|U.COPY_DST); rluBuf=S(48,U.UNIFORM|U.COPY_DST);
   zBufS3=S(16,U.UNIFORM|U.COPY_DST); zBufS4=S(16,U.UNIFORM|U.COPY_DST); zBufLoupe=S(16,U.UNIFORM|U.COPY_DST); device.queue.writeBuffer(zBufS3,0,new Float32Array([0,0,1,1])); device.queue.writeBuffer(zBufS4,0,new Float32Array([0,0,1,1])); device.queue.writeBuffer(zBufLoupe,0,new Float32Array([0,0,1,1]));
   depthTex=device.createTexture({size:[720,1326],format:'depth24plus',usage:GPUTextureUsage.RENDER_ATTACHMENT});
   for(let k=0;k<STEPS.length;k++){ juBuf.push(S(16,U.UNIFORM|U.COPY_DST)); }
@@ -451,7 +456,8 @@ function frame(t){
       rp.setViewport(lx,ly,LSIZE,LSIZE,0,1); rp.setPipeline(pipes.heat); rp.setBindGroup(0,BG.heatLoupe[loupe.sys]); rp.draw(6,1); }
     rp.end();
     // rilievi 3D (pass separato con depth)
-    { const lu=new Uint32Array(rluAB),lf=new Float32Array(rluAB); lu[0]=P.dcols;lu[1]=P.drows;lu[2]=RCOLS;lu[3]=RROWS;lf[4]=t*0.0004;lf[5]=1.3;lf[6]=16.0;lu[7]=P.shape; device.queue.writeBuffer(rluBuf,0,rluAB); }
+    { const dt=Math.min(60,t-(lastFT||t)); lastFT=t; bondPhase+=dt*0.001*(1.5+covBond*10.0); const beat=0.5+0.5*Math.sin(bondPhase); const uPulse=1.0-0.4*covBond*(1.0-beat);
+      const lu=new Uint32Array(rluAB),lf=new Float32Array(rluAB); lu[0]=P.dcols;lu[1]=P.drows;lu[2]=RCOLS;lu[3]=RROWS;lf[4]=t*0.0004;lf[5]=1.3;lf[6]=16.0;lu[7]=P.shape; lf[8]=covA;lf[9]=covB;lf[10]=covBond;lf[11]=uPulse; device.queue.writeBuffer(rluBuf,0,rluAB); }
     const drawN=P.shape===1?RVCOUNT:(P.shape===2?3*PERFACE:(P.shape===4?3*PERFACE:PERFACE));
     const rp2=enc.beginRenderPass({colorAttachments:[{view,loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:depthTex.createView(),depthClearValue:1.0,depthLoadOp:'clear',depthStoreOp:'store'}});
     rp2.setPipeline(pipes.relief);
@@ -466,7 +472,9 @@ function frame(t){
       const a1=[dv.getInt32(0,true),dv.getInt32(4,true),dv.getInt32(8,true)]; const a2=[dv.getInt32(16,true),dv.getInt32(20,true),dv.getInt32(24,true)];
       const vs1=dv.getUint32(32,true), vs2=dv.getUint32(40,true), ov=dv.getUint32(48,true);
       sb.unmap(); mapping=false;
-      const N=P.N; const dist=a1[0]/4.0/N; const ex1=Math.round(a1[2]/2);
+      const N=P.N; const dist=a1[0]/4.0/N; const ex1=Math.round(a1[2]/2); const ex2=Math.round(a2[2]/2);
+      const rawA=ex1/N, rawB=ex2/N; peakA=Math.max(peakA*0.997,rawA); peakB=Math.max(peakB*0.997,rawB);
+      covA=Math.min(1,rawA/peakA); covB=Math.min(1,rawB/peakB); covBond=covA;
       const sync=Math.hypot(a2[0]/4000.0/N, a2[1]/4000.0/N);
       const vm1=vs1/1000.0/NDENS, vm2=vs2/1000.0/NDENS, overlap=ov/1000.0/N;
       document.getElementById('mDist').textContent=dist.toFixed(1); document.getElementById('mEx1').textContent=ex1;
