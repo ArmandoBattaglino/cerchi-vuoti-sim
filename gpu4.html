@@ -284,7 +284,7 @@ fn rot(p:vec3<f32>)->vec3<f32>{ let ca=cos(L.angle); let sa=sin(L.angle);
   var ox=0u; var oy=0u;
   if(corner==1u){ox=1u;} else if(corner==2u){oy=1u;} else if(corner==3u){oy=1u;} else if(corner==4u){ox=1u;} else if(corner==5u){ox=1u;oy=1u;}
   let gx=qx+ox; let gy=qy+oy; let u=f32(gx)/f32(rc-1u); let v=f32(gy)/f32(rc-1u);
-  var pos:vec3<f32>; var nrm:vec3<f32>; var h:f32; var sx=0.42; var sy=1.5; var dataCol=true;
+  var pos:vec3<f32>; var nrm:vec3<f32>; var h:f32; var sx=0.42; var sy=1.5; var dataCol=true; var glow=1.0;
   if(L.shape==0u){
     let sgx=i32(u*f32(L.dcols)); let sgy=i32(v*f32(L.drows)); h=vAt(sgx,sgy);
     let hx=vAt(sgx+2,sgy)-vAt(sgx-2,sgy); let hz=vAt(sgx,sgy+2)-vAt(sgx,sgy-2);
@@ -319,15 +319,20 @@ fn rot(p:vec3<f32>)->vec3<f32>{ let ca=cos(L.angle); let sa=sin(L.angle);
   } else {
     let th=u*6.28318; let ph=v*3.14159;
     let sgx=i32(u*f32(L.dcols)); let sgy=i32(v*f32(L.drows)); h=vAt(sgx,sgy);
-    let rad=0.34 + h*(0.12*L.hscale);
     let sph=vec3<f32>(sin(ph)*cos(th),cos(ph),sin(ph)*sin(th));
-    let off=select(-0.26,0.26,part==1u);
-    pos=rad*sph+vec3<f32>(off,0.0,0.0); nrm=sph; sx=0.32; sy=1.2;
+    if(part==2u){
+      let bx=0.30; let bt=0.09+h*(0.12*L.hscale);
+      pos=vec3<f32>(sph.x*bx,sph.y*bt,sph.z*bt); nrm=normalize(vec3<f32>(sph.x/bx,sph.y/bt,sph.z/bt)); glow=1.7;
+    } else {
+      let off=select(-0.26,0.26,part==1u); let rad=0.30+h*(0.10*L.hscale);
+      pos=rad*sph+vec3<f32>(off,0.0,0.0); nrm=sph;
+    }
+    sx=0.32; sy=1.2;
   }
   let pp=rot(pos); let pn=rot(nrm);
   let lit=clamp(dot(normalize(pn),normalize(vec3<f32>(0.35,0.8,0.45))),0.55,1.0);
   var o:VO; o.clip=vec4<f32>(pp.x*sx,pp.y*sy,pp.z*0.13+0.5,1.0);
-  if(dataCol){ o.col=vec3<f32>(0.5,1.0,0.88)*(0.55+h*0.45)*lit; } else { o.col=vec3<f32>(0.26,0.32,0.34)*lit; }
+  if(dataCol){ o.col=vec3<f32>(0.5,1.0,0.88)*(0.55+h*0.45)*lit*glow; } else { o.col=vec3<f32>(0.26,0.32,0.34)*lit; }
   return o; }
 @fragment fn fs(i:VO)->@location(0) vec4<f32>{ return vec4<f32>(i.col,1.0); }`;
 
@@ -447,7 +452,7 @@ function frame(t){
     rp.end();
     // rilievi 3D (pass separato con depth)
     { const lu=new Uint32Array(rluAB),lf=new Float32Array(rluAB); lu[0]=P.dcols;lu[1]=P.drows;lu[2]=RCOLS;lu[3]=RROWS;lf[4]=t*0.0004;lf[5]=1.3;lf[6]=16.0;lu[7]=P.shape; device.queue.writeBuffer(rluBuf,0,rluAB); }
-    const drawN=P.shape===1?RVCOUNT:(P.shape===2?3*PERFACE:(P.shape===4?2*PERFACE:PERFACE));
+    const drawN=P.shape===1?RVCOUNT:(P.shape===2?3*PERFACE:(P.shape===4?3*PERFACE:PERFACE));
     const rp2=enc.beginRenderPass({colorAttachments:[{view,loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:depthTex.createView(),depthClearValue:1.0,depthLoadOp:'clear',depthStoreOp:'store'}});
     rp2.setPipeline(pipes.relief);
     rp2.setViewport(0,PANY5[0],PW,PH_R,0,1); rp2.setBindGroup(0,BG.relief[1]); rp2.draw(drawN);
