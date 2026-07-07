@@ -420,18 +420,20 @@ function drawSpark(g,arr,color){ const c=g.canvas; g.clearRect(0,0,c.width,c.hei
 
 let frames=0,fpsT=0;
 function frame(t){
-  if(P.running&&device){
+  if(device){
     writeUniforms();
     const N=P.N, NDENS=P.dcols*P.drows, wg=Math.ceil(N/64), wgc=Math.ceil(NDENS/64), gcx=Math.min(wgc,32768), gcy=Math.ceil(wgc/gcx), ncell=grid.cols*grid.rows;
     // overlap BG dipende da cur (pos[0][1-cur])
     BG.ov=device.createBindGroup({layout:pipes.ov.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:ruBuf}},{binding:1,resource:{buffer:pos[0][1-cur]}},{binding:2,resource:{buffer:seedBuf[1][0]}},{binding:3,resource:{buffer:ovBuf}}]});
     const enc=device.createCommandEncoder();
-    for(let s=0;s<2;s++){ enc.clearBuffer(accBuf[s]); }
     enc.clearBuffer(ovBuf);
-    // fisica
+    // FISICA — solo in play; in pausa le particelle restano ferme (ma vuoti/render/lente continuano)
+    if(P.running){
+    for(let s=0;s<2;s++){ enc.clearBuffer(accBuf[s]); }
     for(let s=0;s<2;s++){ enc.clearBuffer(gcBuf,0,ncell*4);
       let p=enc.beginComputePass();p.setPipeline(pipes.build);p.setBindGroup(0,BG.build[s][cur]);p.dispatchWorkgroups(wg);p.end();
       p=enc.beginComputePass();p.setPipeline(pipes.sim);p.setBindGroup(0,BG.sim[s][cur]);p.dispatchWorkgroups(wg);p.end(); }
+    }
     // vuoti: densità → jfa init → 8 step → reduce
     for(let s=0;s<2;s++){ enc.clearBuffer(densBuf[s]); enc.clearBuffer(vstatBuf[s]);
       let p=enc.beginComputePass();p.setPipeline(pipes.dens);p.setBindGroup(0,BG.dens[s][cur]);p.dispatchWorkgroups(wg);p.end();
@@ -456,7 +458,7 @@ function frame(t){
       rp.setViewport(lx,ly,LSIZE,LSIZE,0,1); rp.setPipeline(pipes.heat); rp.setBindGroup(0,BG.heatLoupe[loupe.sys]); rp.draw(6,1); }
     rp.end();
     // rilievi 3D (pass separato con depth)
-    { const dt=Math.min(60,t-(lastFT||t)); lastFT=t; bondPhase+=dt*0.001*(1.5+covBond*10.0); const beat=0.5+0.5*Math.sin(bondPhase); const uPulse=1.0-0.4*covBond*(1.0-beat);
+    { const dt=Math.min(60,t-(lastFT||t)); lastFT=t; if(P.running) bondPhase+=dt*0.001*(1.5+covBond*10.0); const beat=0.5+0.5*Math.sin(bondPhase); const uPulse=1.0-0.4*covBond*(1.0-beat);
       const lu=new Uint32Array(rluAB),lf=new Float32Array(rluAB); lu[0]=P.dcols;lu[1]=P.drows;lu[2]=RCOLS;lu[3]=RROWS;lf[4]=t*0.0004;lf[5]=1.3;lf[6]=16.0;lu[7]=P.shape; lf[8]=covA;lf[9]=covB;lf[10]=covBond;lf[11]=uPulse; device.queue.writeBuffer(rluBuf,0,rluAB); }
     const drawN=P.shape===1?RVCOUNT:(P.shape===2?3*PERFACE:(P.shape===4?3*PERFACE:PERFACE));
     const rp2=enc.beginRenderPass({colorAttachments:[{view,loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:depthTex.createView(),depthClearValue:1.0,depthLoadOp:'clear',depthStoreOp:'store'}});
@@ -473,18 +475,18 @@ function frame(t){
       const vs1=dv.getUint32(32,true), vs2=dv.getUint32(40,true), ov=dv.getUint32(48,true);
       sb.unmap(); mapping=false;
       const N=P.N; const dist=a1[0]/4.0/N; const ex1=Math.round(a1[2]/2); const ex2=Math.round(a2[2]/2);
-      const rawA=ex1/N, rawB=ex2/N; peakA=Math.max(peakA*0.997,rawA); peakB=Math.max(peakB*0.997,rawB);
-      covA=Math.min(1,rawA/peakA); covB=Math.min(1,rawB/peakB); covBond=covA;
+      if(P.running){ const rawA=ex1/N, rawB=ex2/N; peakA=Math.max(peakA*0.997,rawA); peakB=Math.max(peakB*0.997,rawB);
+        covA=Math.min(1,rawA/peakA); covB=Math.min(1,rawB/peakB); covBond=covA; }
       const sync=Math.hypot(a2[0]/4000.0/N, a2[1]/4000.0/N);
       const vm1=vs1/1000.0/NDENS, vm2=vs2/1000.0/NDENS, overlap=ov/1000.0/N;
       document.getElementById('mDist').textContent=dist.toFixed(1); document.getElementById('mEx1').textContent=ex1;
       document.getElementById('mSync').textContent=sync.toFixed(2); document.getElementById('mOv').textContent=overlap.toFixed(3);
       document.getElementById('mV1').textContent=vm1.toFixed(3); document.getElementById('mV2').textContent=vm2.toFixed(3);
       document.getElementById('mCount').textContent=(N>=1000?(N/1000).toFixed(0)+'k':N);
-      hist[0].push(ex1); hist[1].push(sync); hist[2].push(overlap); hist[3].push(vm1); hist[4].push(vm2);
-      hist.forEach(h=>{ if(h.length>330)h.shift(); });
+      if(P.running){ hist[0].push(ex1); hist[1].push(sync); hist[2].push(overlap); hist[3].push(vm1); hist[4].push(vm2);
+      hist.forEach(h=>{ if(h.length>330)h.shift(); }); }
     }).catch(()=>{ mapping=false; }); }
-    cur=1-cur;
+    if(P.running) cur=1-cur;
   }
   drawSpark(sp[0],hist[0],'#ffb14e'); drawSpark(sp[1],hist[1],'#ffb14e'); drawSpark(sp[2],hist[2],'#c88bff'); drawSpark(sp[3],hist[3],'#5ee0c0');
   frames++; if(t-fpsT>500){ document.getElementById('fps').textContent=Math.round(frames*1000/(t-fpsT))+' fps'; frames=0; fpsT=t; }
