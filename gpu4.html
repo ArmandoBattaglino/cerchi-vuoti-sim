@@ -43,10 +43,12 @@
 <div class="wrap">
   <div>
     <h1>Analisi GPU — 4 pannelli completi</h1>
-    <p class="sub">Sulla 4070. <b style="color:var(--accent)">Clic in S1/S2</b> = inietta palline · <b style="color:var(--accent)">Clic in S3/S4</b> = zoom 2× (tasto destro = reset).</p>
+    <p class="sub">Sulla 4070. <b style="color:var(--accent)">Clic in S1/S2</b> = inietta palline · <b style="color:var(--accent)">Passa il mouse su S3/S4</b> = lente d'ingrandimento (<b style="color:var(--accent)">scroll</b> = dimensione lente).</p>
     <div class="stage">
       <canvas id="cv" width="720" height="1326"></canvas>
       <span class="fps" id="fps">—</span>
+      <div id="loupeMarker" style="position:absolute;border:1.5px solid var(--accent);background:rgba(94,224,192,0.12);pointer-events:none;display:none;border-radius:2px;z-index:5"></div>
+      <div id="loupeBox" style="position:absolute;border:2px solid var(--accent);pointer-events:none;display:none;border-radius:6px;box-shadow:0 6px 26px rgba(0,0,0,0.75);z-index:6"></div>
       <div class="lab" style="top:4px">S1 · obiettivi</div>
       <div class="lab" style="top:218px">S2 · frequenza (nessun obiettivo)</div>
       <div class="lab" id="labS3" style="top:432px">S3 · vuoti di S2</div>
@@ -322,7 +324,7 @@ fn rot(p:vec3<f32>)->vec3<f32>{ let ca=cos(L.angle); let sa=sin(L.angle);
 @fragment fn fs(i:VO)->@location(0) vec4<f32>{ return vec4<f32>(i.col,1.0); }`;
 
 let device,ctx,format;
-let physBuf=[],ruBuf,ruDotBuf,rluBuf,zBufS3,zBufS4,depthTex,juBuf=[],gcBuf,giBuf;
+let physBuf=[],ruBuf,ruDotBuf,rluBuf,zBufS3,zBufS4,zBufLoupe,depthTex,juBuf=[],gcBuf,giBuf;
 let pos=[[],[]],vel=[[],[]],ph=[[],[]],tgt=[],densBuf=[],seedBuf=[[],[]],accBuf=[],vstatBuf=[],ovBuf,exBuf=[];
 let pipes={}, BG={};
 let cur=0,grid={cols:1,rows:1,cell:16};
@@ -341,7 +343,7 @@ async function initGPU(){
   ctx=cv.getContext('webgpu'); format=navigator.gpu.getPreferredCanvasFormat(); ctx.configure({device,format,alphaMode:'opaque'});
   const U=GPUBufferUsage, S=(sz,u)=>device.createBuffer({size:sz,usage:u});
   physBuf=[S(64,U.UNIFORM|U.COPY_DST),S(64,U.UNIFORM|U.COPY_DST)]; ruBuf=S(48,U.UNIFORM|U.COPY_DST); ruDotBuf=S(48,U.UNIFORM|U.COPY_DST); rluBuf=S(32,U.UNIFORM|U.COPY_DST);
-  zBufS3=S(16,U.UNIFORM|U.COPY_DST); zBufS4=S(16,U.UNIFORM|U.COPY_DST); device.queue.writeBuffer(zBufS3,0,new Float32Array([0,0,1,1])); device.queue.writeBuffer(zBufS4,0,new Float32Array([0,0,1,1]));
+  zBufS3=S(16,U.UNIFORM|U.COPY_DST); zBufS4=S(16,U.UNIFORM|U.COPY_DST); zBufLoupe=S(16,U.UNIFORM|U.COPY_DST); device.queue.writeBuffer(zBufS3,0,new Float32Array([0,0,1,1])); device.queue.writeBuffer(zBufS4,0,new Float32Array([0,0,1,1])); device.queue.writeBuffer(zBufLoupe,0,new Float32Array([0,0,1,1]));
   depthTex=device.createTexture({size:[720,1326],format:'depth24plus',usage:GPUTextureUsage.RENDER_ATTACHMENT});
   for(let k=0;k<STEPS.length;k++){ juBuf.push(S(16,U.UNIFORM|U.COPY_DST)); }
   juBuf.initB=S(16,U.UNIFORM|U.COPY_DST);
@@ -361,7 +363,7 @@ async function initGPU(){
   pipes.heat=device.createRenderPipeline({layout:'auto',vertex:{module:sm(HEAT),entryPoint:'vs'},fragment:{module:sm(HEAT),entryPoint:'fs',targets:[{format}]},primitive:{topology:'triangle-list'}});
   pipes.relief=device.createRenderPipeline({layout:'auto',vertex:{module:sm(RELIEF),entryPoint:'vs'},fragment:{module:sm(RELIEF),entryPoint:'fs',targets:[{format}]},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});
   const bg=(pl,e)=>device.createBindGroup({layout:pl.getBindGroupLayout(0),entries:e});
-  BG.build=[[],[]];BG.sim=[[],[]];BG.dens=[[],[]];BG.part=[[],[]];BG.dot=[[],[]];BG.heat=[];BG.jinit=[];BG.jstep=[[],[]];BG.vred=[];BG.ov=[];
+  BG.build=[[],[]];BG.sim=[[],[]];BG.dens=[[],[]];BG.part=[[],[]];BG.dot=[[],[]];BG.heat=[];BG.heatLoupe=[];BG.jinit=[];BG.jstep=[[],[]];BG.vred=[];BG.ov=[];
   for(let s=0;s<2;s++)for(let c=0;c<2;c++){
     BG.build[s][c]=bg(pipes.build,[{binding:0,resource:{buffer:physBuf[s]}},{binding:1,resource:{buffer:pos[s][c]}},{binding:2,resource:{buffer:gcBuf}},{binding:3,resource:{buffer:giBuf}}]);
     BG.sim[s][c]=bg(pipes.sim,[{binding:0,resource:{buffer:physBuf[s]}},{binding:1,resource:{buffer:pos[s][c]}},{binding:2,resource:{buffer:vel[s][c]}},{binding:3,resource:{buffer:ph[s][c]}},{binding:4,resource:{buffer:tgt[s]}},{binding:5,resource:{buffer:gcBuf}},{binding:6,resource:{buffer:giBuf}},{binding:7,resource:{buffer:pos[s][1-c]}},{binding:8,resource:{buffer:vel[s][1-c]}},{binding:9,resource:{buffer:ph[s][1-c]}},{binding:10,resource:{buffer:accBuf[s]}},{binding:11,resource:{buffer:exBuf[s]}}]);
@@ -374,6 +376,7 @@ async function initGPU(){
     BG.jstep[s]=[]; for(let k=0;k<STEPS.length;k++){ const inb=seedBuf[s][k%2], outb=seedBuf[s][1-(k%2)]; BG.jstep[s].push(bg(pipes.jstep,[{binding:0,resource:{buffer:juBuf[k]}},{binding:1,resource:{buffer:inb}},{binding:2,resource:{buffer:outb}}])); }
     BG.vred[s]=bg(pipes.vred,[{binding:0,resource:{buffer:juBuf.initB}},{binding:1,resource:{buffer:seedBuf[s][0]}},{binding:2,resource:{buffer:vstatBuf[s]}}]);
     BG.heat[s]=bg(pipes.heat,[{binding:0,resource:{buffer:ruBuf}},{binding:1,resource:{buffer:seedBuf[s][0]}},{binding:2,resource:{buffer:(s===1?zBufS3:zBufS4)}}]);
+    BG.heatLoupe[s]=bg(pipes.heat,[{binding:0,resource:{buffer:ruBuf}},{binding:1,resource:{buffer:seedBuf[s][0]}},{binding:2,resource:{buffer:zBufLoupe}}]);
   }
   BG.relief=[bg(pipes.relief,[{binding:0,resource:{buffer:rluBuf}},{binding:1,resource:{buffer:seedBuf[0][0]}}]),bg(pipes.relief,[{binding:0,resource:{buffer:rluBuf}},{binding:1,resource:{buffer:seedBuf[1][0]}}])];
   BG.ov=bg(pipes.ov,[{binding:0,resource:{buffer:ruBuf}},{binding:1,resource:{buffer:pos[0][0]}},{binding:2,resource:{buffer:seedBuf[1][0]}},{binding:3,resource:{buffer:ovBuf}}]); // rebuilt each frame (pos depends on cur)
@@ -428,6 +431,11 @@ function frame(t){
     if(P.dots){ rp.setPipeline(pipes.part);rp.setBindGroup(0,BG.dot[1][cur]);rp.draw(6,N); }
     rp.setViewport(0,PANY[3],PW,PH,0,1);rp.setPipeline(pipes.heat);rp.setBindGroup(0,BG.heat[0]);rp.draw(6,1);
     if(P.dots){ rp.setPipeline(pipes.part);rp.setBindGroup(0,BG.dot[0][cur]);rp.draw(6,N); }
+    if(loupe.active){ const panelY=PANY[loupe.sys===1?2:3], pu=loupe.mx/PW, pv=(loupe.my-panelY)/PH, capU=loupe.cap/PW, capV=loupe.cap/PH;
+      const zx=Math.max(0,Math.min(1-capU,pu-capU/2)), zy=Math.max(0,Math.min(1-capV,pv-capV/2));
+      device.queue.writeBuffer(zBufLoupe,0,new Float32Array([zx,zy,capU,capV]));
+      const lx=Math.max(0,Math.min(CW-LSIZE,loupe.mx-LSIZE-14)), ly=Math.max(0,Math.min(CH-LSIZE,loupe.my-LSIZE/2));
+      rp.setViewport(lx,ly,LSIZE,LSIZE,0,1); rp.setPipeline(pipes.heat); rp.setBindGroup(0,BG.heatLoupe[loupe.sys]); rp.draw(6,1); }
     rp.end();
     // rilievi 3D (pass separato con depth)
     { const lu=new Uint32Array(rluAB),lf=new Float32Array(rluAB); lu[0]=P.dcols;lu[1]=P.drows;lu[2]=RCOLS;lu[3]=RROWS;lf[4]=t*0.0004;lf[5]=1.3;lf[6]=16.0;lu[7]=P.shape; device.queue.writeBuffer(rluBuf,0,rluAB); }
@@ -482,18 +490,21 @@ document.getElementById('shpRel').onclick=()=>setShape(0);
 document.getElementById('shpCube').onclick=()=>setShape(1);
 document.getElementById('shpCyl').onclick=()=>setShape(2);
 document.getElementById('shpSph').onclick=()=>setShape(3);
-let zoomS3={x:0,y:0,w:1,h:1}, zoomS4={x:0,y:0,w:1,h:1};
-function updateVoidLabels(){ const l3=document.getElementById('labS3'),l4=document.getElementById('labS4'); if(l3)l3.textContent='S3 · vuoti di S2'+(zoomS3.w<1?' — zoom '+Math.round(1/zoomS3.w)+'× (tasto dx = reset)':''); if(l4)l4.textContent='S4 · vuoti di S1'+(zoomS4.w<1?' — zoom '+Math.round(1/zoomS4.w)+'× (tasto dx = reset)':''); }
-function writeZoom(){ if(!device)return; device.queue.writeBuffer(zBufS3,0,new Float32Array([zoomS3.x,zoomS3.y,zoomS3.w,zoomS3.h])); device.queue.writeBuffer(zBufS4,0,new Float32Array([zoomS4.x,zoomS4.y,zoomS4.w,zoomS4.h])); updateVoidLabels(); }
-function zoomInto(z,u,v){ const fu=z.x+u*z.w, fv=z.y+v*z.h, nw=z.w*0.5, nh=z.h*0.5; if(nw<0.02){ z.x=0;z.y=0;z.w=1;z.h=1; return; } z.w=nw; z.h=nh; z.x=Math.max(0,Math.min(1-nw,fu-nw/2)); z.y=Math.max(0,Math.min(1-nh,fv-nh/2)); }
+const LSIZE=280; let loupe={active:false,sys:1,mx:0,my:0,cap:80};
+function updateLoupeUI(){ const m=document.getElementById('loupeMarker'),b=document.getElementById('loupeBox'); if(!m||!b)return;
+  if(!loupe.active){ m.style.display='none'; b.style.display='none'; return; }
+  const r=cv.getBoundingClientRect(), sc=r.width/CW;
+  const lx=Math.max(0,Math.min(CW-LSIZE,loupe.mx-LSIZE-14)), ly=Math.max(0,Math.min(CH-LSIZE,loupe.my-LSIZE/2));
+  m.style.display='block'; m.style.left=((loupe.mx-loupe.cap/2)*sc)+'px'; m.style.top=((loupe.my-loupe.cap/2)*sc)+'px'; m.style.width=(loupe.cap*sc)+'px'; m.style.height=(loupe.cap*sc)+'px';
+  b.style.display='block'; b.style.left=(lx*sc)+'px'; b.style.top=(ly*sc)+'px'; b.style.width=(LSIZE*sc)+'px'; b.style.height=(LSIZE*sc)+'px'; }
 cv.addEventListener('click',e=>{ const r=cv.getBoundingClientRect(); const x=(e.clientX-r.left)*(CW/r.width), y=(e.clientY-r.top)*(CH/r.height);
-  if(y>=PANY[0]&&y<=PANY[0]+PH){ addParticles(4000,x,y-PANY[0]); return; }
-  if(y>=PANY[1]&&y<=PANY[1]+PH){ addParticles(4000,x,y-PANY[1]); return; }
-  if(y>=PANY[2]&&y<=PANY[2]+PH){ zoomInto(zoomS3,x/PW,(y-PANY[2])/PH); writeZoom(); return; }
-  if(y>=PANY[3]&&y<=PANY[3]+PH){ zoomInto(zoomS4,x/PW,(y-PANY[3])/PH); writeZoom(); return; } });
-cv.addEventListener('contextmenu',e=>{ const r=cv.getBoundingClientRect(); const y=(e.clientY-r.top)*(CH/r.height);
-  if(y>=PANY[2]&&y<=PANY[2]+PH){ e.preventDefault(); zoomS3={x:0,y:0,w:1,h:1}; writeZoom(); }
-  else if(y>=PANY[3]&&y<=PANY[3]+PH){ e.preventDefault(); zoomS4={x:0,y:0,w:1,h:1}; writeZoom(); } });
+  if(y>=PANY[0]&&y<=PANY[0]+PH){ addParticles(4000,x,y-PANY[0]); } else if(y>=PANY[1]&&y<=PANY[1]+PH){ addParticles(4000,x,y-PANY[1]); } });
+cv.addEventListener('mousemove',e=>{ const r=cv.getBoundingClientRect(); const x=(e.clientX-r.left)*(CW/r.width), y=(e.clientY-r.top)*(CH/r.height);
+  if(y>=PANY[2]&&y<=PANY[2]+PH){ loupe.active=true; loupe.sys=1; loupe.mx=x; loupe.my=y; }
+  else if(y>=PANY[3]&&y<=PANY[3]+PH){ loupe.active=true; loupe.sys=0; loupe.mx=x; loupe.my=y; }
+  else { loupe.active=false; } updateLoupeUI(); });
+cv.addEventListener('mouseleave',()=>{ loupe.active=false; updateLoupeUI(); });
+cv.addEventListener('wheel',e=>{ if(!loupe.active)return; e.preventDefault(); loupe.cap=Math.max(12,Math.min(170,loupe.cap*(e.deltaY>0?1.12:1/1.12))); updateLoupeUI(); },{passive:false});
 document.getElementById('sF').oninput=e=>{ P.F=+e.target.value/100; syncLabels(); };
 document.getElementById('sD').oninput=e=>{ P.D=+e.target.value/100; syncLabels(); };
 document.getElementById('sR').oninput=e=>{ P.R=+e.target.value; syncLabels(); };
