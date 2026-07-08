@@ -108,6 +108,11 @@
       <div class="big"><span id="mV1" style="color:#5ee0c0">—</span> <span style="font-size:12px;color:var(--dim)">S1</span> · <span id="mV2" style="color:var(--warm)">—</span> <span style="font-size:12px;color:var(--dim)">S2</span></div>
       <canvas id="sp4" class="spark" width="330" height="40"></canvas>
     </div>
+    <div class="metric">
+      <div class="lab2">Spettro temporale della forma — nitidezza (memoria)</div>
+      <div class="big"><span id="mSharp" style="color:#7fd4ff">—</span> <span style="font-size:12px;color:var(--dim)">alta = la frequenza ricorda la forma (poco attrito)</span></div>
+      <canvas id="spSpec" class="spark" width="330" height="40"></canvas>
+    </div>
     <div class="stat" style="margin-top:12px;color:var(--dim);font-size:12px">GPU: <b id="gpuName" style="color:var(--accent)">—</b></div>
     <p class="hint"><b>Motore GPU:</b> fisica + vuoti <b>distance-field</b> (jump-flood) + 4 metriche via reduction, tutto sulla 4070. Raggio basso = più struttura. Serve <b>WebGPU</b> (Chrome/Edge recenti).</p>
   </div>
@@ -117,6 +122,7 @@
 const cv=document.getElementById('cv'), errBox=document.getElementById('err');
 function fail(m){ errBox.style.display='block'; errBox.textContent=m; console.error(m); }
 const sp=[document.getElementById('sp1').getContext('2d'),document.getElementById('sp2').getContext('2d'),document.getElementById('sp3').getContext('2d'),document.getElementById('sp4').getContext('2d')];
+const specCtx=document.getElementById('spSpec').getContext('2d');
 const hist=[[],[],[],[],[]]; // dist, sync, overlap, v1, v2
 
 const CW=720,CH=1326,PW=720,PH=180,PANY=[20,234,448,662],PH_R=200,PANY5=[876,1110],RCOLS=96,RROWS=96,PERFACE=(RCOLS-1)*(RCOLS-1)*6,RVCOUNT=6*PERFACE;
@@ -417,6 +423,15 @@ function writeUniforms(){
   { const ab=new ArrayBuffer(16),uu=new Uint32Array(ab),ff=new Float32Array(ab); uu[0]=1;uu[1]=P.dcols;uu[2]=P.drows;ff[3]=REF; device.queue.writeBuffer(juBuf.initB,0,ab); }
 }
 function drawSpark(g,arr,color){ const c=g.canvas; g.clearRect(0,0,c.width,c.height); if(arr.length<2)return; let mx=-1e9,mn=1e9; for(const v of arr){ if(v>mx)mx=v; if(v<mn)mn=v; } const rng=(mx-mn)||1,w=c.width,h=c.height; g.strokeStyle=color; g.lineWidth=1.5; g.beginPath(); for(let i=0;i<arr.length;i++){ const x=i/(arr.length-1)*w,y=h-4-(arr[i]-mn)/rng*(h-8); i?g.lineTo(x,y):g.moveTo(x,y);} g.stroke(); }
+function fft(re,im){ const n=re.length; for(let i=1,j=0;i<n;i++){ let bit=n>>1; for(;j&bit;bit>>=1) j^=bit; j^=bit; if(i<j){ const tr=re[i];re[i]=re[j];re[j]=tr; const ti=im[i];im[i]=im[j];im[j]=ti; } } for(let len=2;len<=n;len<<=1){ const ang=-2*Math.PI/len, wr=Math.cos(ang), wi=Math.sin(ang); for(let i=0;i<n;i+=len){ let cr=1,ci=0; for(let k=0;k<len/2;k++){ const ur=re[i+k],ui=im[i+k]; const a=re[i+k+len/2],b=im[i+k+len/2]; const vr=a*cr-b*ci, vi=a*ci+b*cr; re[i+k]=ur+vr; im[i+k]=ui+vi; re[i+k+len/2]=ur-vr; im[i+k+len/2]=ui-vi; const ncr=cr*wr-ci*wi; ci=cr*wi+ci*wr; cr=ncr; } } } }
+function drawSpectrum(){ const arr=hist[3], g=specCtx, c=g.canvas, N=256; g.clearRect(0,0,c.width,c.height); if(arr.length<N){ document.getElementById('mSharp').textContent='—'; return; }
+  const re=new Array(N), im=new Array(N).fill(0); let m=0; for(let i=0;i<N;i++) m+=arr[arr.length-N+i]; m/=N;
+  for(let i=0;i<N;i++){ const w=0.5-0.5*Math.cos(2*Math.PI*i/(N-1)); re[i]=(arr[arr.length-N+i]-m)*w; }
+  fft(re,im); const half=N/2; const mag=new Array(half); let mmax=1e-9,sum=0,sumlog=0; const cnt=half-1;
+  for(let k=1;k<half;k++){ const p=re[k]*re[k]+im[k]*im[k]; mag[k]=Math.sqrt(p); if(mag[k]>mmax)mmax=mag[k]; sum+=p; sumlog+=Math.log(p+1e-12); }
+  g.strokeStyle='#7fd4ff'; g.lineWidth=1.5; g.beginPath(); for(let k=1;k<half;k++){ const x=(k-1)/(cnt-1)*c.width, y=c.height-4-(mag[k]/mmax)*(c.height-8); (k===1)?g.moveTo(x,y):g.lineTo(x,y); } g.stroke();
+  const gmean=Math.exp(sumlog/cnt), amean=sum/cnt, flat=gmean/(amean+1e-12), sharp=Math.max(0,1-flat);
+  document.getElementById('mSharp').textContent=sharp.toFixed(2); }
 
 let frames=0,fpsT=0;
 function frame(t){
@@ -488,7 +503,7 @@ function frame(t){
     }).catch(()=>{ mapping=false; }); }
     if(P.running) cur=1-cur;
   }
-  drawSpark(sp[0],hist[0],'#ffb14e'); drawSpark(sp[1],hist[1],'#ffb14e'); drawSpark(sp[2],hist[2],'#c88bff'); drawSpark(sp[3],hist[3],'#5ee0c0');
+  drawSpark(sp[0],hist[0],'#ffb14e'); drawSpark(sp[1],hist[1],'#ffb14e'); drawSpark(sp[2],hist[2],'#c88bff'); drawSpark(sp[3],hist[3],'#5ee0c0'); drawSpectrum();
   frames++; if(t-fpsT>500){ document.getElementById('fps').textContent=Math.round(frames*1000/(t-fpsT))+' fps'; frames=0; fpsT=t; }
   requestAnimationFrame(frame);
 }
