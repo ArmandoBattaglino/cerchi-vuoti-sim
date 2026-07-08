@@ -65,8 +65,8 @@
     <div class="row"><label>Attrito</label><input id="sD" type="range" min="0" max="95" step="0.25" value="8"><span class="val" id="vD">0.080</span></div>
     <div class="row"><label>Raggio d'interazione</label><input id="sR" type="range" min="3" max="120" step="0.25" value="16"><span class="val" id="vR">16.0</span></div>
     <div class="row"><label>Accoppiamento (sync S2)</label><input id="sK" type="range" min="0" max="60" step="0.25" value="12"><span class="val" id="vK">0.120</span></div>
-    <div class="row"><label>Intensità vuoti</label><input id="sV" type="range" min="1" max="40" step="0.25" value="8"><span class="val" id="vV">2.67</span></div>
-    <div class="row"><label>Risoluzione vuoti</label><input id="sRes" type="range" min="40" max="8000" step="20" value="400"><span class="val" id="vRes">400</span></div>
+    <div class="row"><label>Intensità vuoti</label><input id="sV" type="range" min="-1" max="1" step="0.0001" value="1"><span class="val" id="vV">1.0000</span></div>
+    <div class="row"><label>Risoluzione vuoti</label><input id="sRes" type="range" min="8" max="8000" step="4" value="400"><span class="val" id="vRes">400</span></div>
 
     <label class="chk"><input type="checkbox" id="cFilter"> Filtro spostamenti (colore opposto)</label>
     <label class="chk"><input type="checkbox" id="cGlow"> Frequenza scambi (bagliore)</label>
@@ -129,7 +129,7 @@ const CW=720,CH=1326,PW=720,PH=180,PANY=[20,234,448,662],PH_R=200,PANY5=[876,111
 const MAXN=1000000,CAP=48,CELL_MIN=10,DCOLS_MAX=8000,DROWS_MAX=2000,NDENS_MAX=DCOLS_MAX*DROWS_MAX;
 const COLS_MAX=Math.ceil(PW/CELL_MIN),ROWS_MAX=Math.ceil(PH/CELL_MIN),NCM=COLS_MAX*ROWS_MAX;
 const STEPS=[4096,2048,1024,512,256,128,64,32,16,8,4,2,1], REF=16.0;
-let P={ N:30000,F:0.08,D:0.08,R:16,K:0.12,V:2.7,dcols:400,drows:100,filter:false,glow:false,dots:false,shape:2,running:true,ballR:1.8,maxV:4.0,wall:0.85,omega:0.06 };
+let P={ N:30000,F:0.08,D:0.08,R:16,K:0.12,V:1,dcols:400,drows:100,filter:false,glow:false,dots:false,shape:2,running:true,ballR:1.8,maxV:4.0,wall:0.85,omega:0.06 };
 
 const PHYS=`struct Par { n:u32,cols:u32,rows:u32,cap:u32, ww:f32,wh:f32,cell:f32,radius:f32, ballR:f32,force:f32,coupling:f32,damping:f32, maxV:f32,wall:f32,omega:f32,mode:u32 };`;
 const RU=`struct RU { ww:f32,wh:f32,dcols:u32,drows:u32, dcell:f32,pointSize:f32,n:u32,intensity:f32, flags:u32,pa:u32,pb:u32,pc:u32 };`;
@@ -269,7 +269,7 @@ struct VO{ @builtin(position) clip:vec4<f32>, @location(0) uv:vec2<f32> };
   let cx=clamp(i32(fu*f32(R.dcols)),0,i32(R.dcols)-1); let cy=clamp(i32(fv*f32(R.drows)),0,i32(R.drows)-1);
   let s=seed[u32(cy)*R.dcols+u32(cx)]; var dist=32.0;
   if(s!=0xffffffffu){ let sx=i32(s%R.dcols); let sy=i32(s/R.dcols); dist=sqrt(f32((cx-sx)*(cx-sx)+(cy-sy)*(cy-sy))); }
-  var e=clamp(dist/16.0,0.0,1.0); e=pow(e,3.0/R.intensity);
+  var e=pow(clamp(dist/16.0,1e-4,1.0), 3.0/R.intensity); e=clamp(e,0.0,1.0);
   return vec4<f32>(0.37*e,0.88*e,0.75*e,1.0); }`;
 
 const RELIEF=`
@@ -509,7 +509,7 @@ function frame(t){
 }
 
 function fmtN(n){ return n>=1000?(n/1000).toFixed(n>=100000?0:1)+'k':n; }
-function syncLabels(){ document.getElementById('vN').textContent=fmtN(P.N); document.getElementById('vF').textContent=P.F.toFixed(3); document.getElementById('vD').textContent=P.D.toFixed(3); document.getElementById('vR').textContent=P.R.toFixed(1); document.getElementById('vK').textContent=P.K.toFixed(3); document.getElementById('vV').textContent=P.V.toFixed(2); document.getElementById('vRes').textContent=P.dcols; document.getElementById('mCount').textContent=fmtN(P.N); }
+function syncLabels(){ document.getElementById('vN').textContent=fmtN(P.N); document.getElementById('vF').textContent=P.F.toFixed(3); document.getElementById('vD').textContent=P.D.toFixed(3); document.getElementById('vR').textContent=P.R.toFixed(1); document.getElementById('vK').textContent=P.K.toFixed(3); document.getElementById('vV').textContent=P.V.toFixed(4); document.getElementById('vRes').textContent=P.dcols; document.getElementById('mCount').textContent=fmtN(P.N); }
 function addParticles(count,lx,ly){ if(!device) return; const start=P.N,end=Math.min(MAXN,start+count),n=end-start; if(n<=0) return;
   for(let s=0;s<2;s++){ const po=new Float32Array(n*2),vl=new Float32Array(n*2),pa=new Float32Array(n),tg=new Float32Array(n*2);
     for(let i=0;i<n;i++){ let x,y; if(lx!=null){ x=lx+(Math.random()-0.5)*70; y=ly+(Math.random()-0.5)*70; } else { x=Math.random()*PW; y=Math.random()*PH; }
@@ -548,7 +548,7 @@ document.getElementById('sF').oninput=e=>{ P.F=+e.target.value/100; syncLabels()
 document.getElementById('sD').oninput=e=>{ P.D=+e.target.value/100; syncLabels(); };
 document.getElementById('sR').oninput=e=>{ P.R=+e.target.value; syncLabels(); };
 document.getElementById('sK').oninput=e=>{ P.K=+e.target.value/100; syncLabels(); };
-document.getElementById('sV').oninput=e=>{ P.V=+e.target.value/3; syncLabels(); };
+document.getElementById('sV').oninput=e=>{ P.V=+e.target.value; syncLabels(); };
 document.getElementById('bPlay').onclick=e=>{ P.running=!P.running; e.target.textContent=P.running?'Pausa':'Play'; };
 document.getElementById('bReset').onclick=()=>reset();
 
