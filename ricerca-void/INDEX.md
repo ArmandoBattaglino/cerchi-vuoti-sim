@@ -2,7 +2,7 @@
 
 Questa cartella raccoglie la mappa ragionata di **tutti i progetti** (repo, paper, tool, organizzazioni e community) rilevanti per i temi del tuo lavoro: *world model come sogno interno*, *coscienza = ricorsione/relazione*, *memoria novelty-gated*, *arena del vuoto con campi/particelle che si auto-organizzano*. Serve come punto di partenza unico: da qui scegli cosa clonare, cosa leggere e cosa hai già approfondito.
 
-**218 progetti in indice** · **118 già analizzati a fondo** (link `progetti/<slug>.md`) · **189 repo/tool clonabili** via `clone-all.sh`.
+**225 progetti in indice** · **125 già analizzati a fondo** (link `progetti/<slug>.md`) · **189 repo/tool clonabili** via `clone-all.sh`.
 
 ## Legenda rilevanza
 
@@ -142,7 +142,7 @@ Il badge `★` è il numero di stelle GitHub (quando applicabile). `[analisi]` p
   Statistical Parametric Mapping, il pacchetto di Karl Friston: contiene DEM (Dynamic Expectation Maximization), il generalized filtering e le demo originali di active inference/free energy da cui l'intero filone e nato. Sorgente primaria del FEP.
 
 ### Memoria degli agenti
-*17 progetti · 7 analizzati*
+*23 progetti · 13 analizzati*
 
 - **[A-MEM (Agentic Memory)](https://github.com/agiresearch/A-mem)** `●●●●●` · 1.110★ · [analisi](progetti/agiresearch-a-mem.md)  
   NeurIPS 2025 (Xu et al.). Memoria agentica auto-organizzante ispirata allo Zettelkasten: ogni nuova memoria genera note strutturate, si collega dinamicamente a memorie correlate, e l'inserimento aggiorna/evolve gli attributi delle note esistenti (link e contesti si riscrivono). La rete di memoria si struttura da sola.
@@ -178,6 +178,18 @@ Il badge `★` è il numero di stelle GitHub (quando applicabile). `[analisi]` p
   Memory layer open-source per agenti autonomi che emula la memoria umana: knowledge graph (Neo4j) piu ranking di entita che decade nel tempo per modellare cosa resta saliente. Combina memoria di lavoro, entita e recency-weighting.
 - **[Agent-Memory-Paper-List (Memory in the Age of AI Agents: A Survey)](https://github.com/Shichun-Liu/Agent-Memory-Paper-List)** `●●●○○` · 2.247★  
   Lista curata a supporto della survey 'Memory in the Age of AI Agents'. Tassonomizza il campo (memoria parametrica vs contestuale, breve vs lungo termine, operazioni di consolidamento/aggiornamento/forgetting) e raccoglie i paper: mappa d'orientamento per tutto il filone.
+- **[DNC / NTM (google-deepmind/dnc)](https://github.com/google-deepmind/dnc)** `●●●●○` · 2.539★ · [analisi](progetti/google-deepmind-dnc.md)  
+  Differentiable Neural Computer e Neural Turing Machine (DeepMind, Graves et al.): rete neurale accoppiata a una matrice di memoria esterna indirizzabile per contenuto e per locazione, che impara a leggere/scrivere. Antenato neurale della memoria di lavoro differenziabile - la memoria come registro esterno letto/scritto dall'attenzione.
+- **[Modern Hopfield (ml-jku/hopfield-layers)](https://github.com/ml-jku/hopfield-layers)** `●●●●○` · 1.788★ · [analisi](progetti/ml-jku-hopfield-layers.md)  
+  'Hopfield Networks is All You Need' (Ramsauer et al., ml-jku): reti di Hopfield moderne a capacita' esponenziale che convergono in un solo passo e sono matematicamente equivalenti all'attention del Transformer. Memoria associativa come pattern completion - recupero di un ricordo da uno stimolo parziale.
+- **[Sparse Distributed Memory (Kanerva)](https://en.wikipedia.org/wiki/Sparse_distributed_memory)** `●●●●○` · [analisi](progetti/kanerva-sparse-distributed-memory.md)  
+  Modello di memoria di Pentti Kanerva: indirizzi ad altissima dimensione, scrittura distribuita sulle hard-location vicine e recupero per prossimita' nello spazio di Hamming. Modello classico di memoria associativa cerebellare, robusto al rumore - base concettuale di SDR/HTM e delle memorie vettoriali.
+- **[pymdp (infer-actively/pymdp)](https://github.com/infer-actively/pymdp)** `●●●●○` · 721★ · [analisi](progetti/infer-actively-pymdp.md)  
+  Implementazione Python dell'active inference su POMDP (free energy principle di Friston): l'agente come modello generativo che minimizza sorpresa, mantenendo e aggiornando credenze sullo stato del mondo. La memoria come belief-state bayesiano gated dalla sorpresa (novelty).
+- **[NuPIC / HTM (numenta)](https://github.com/numenta/htm.core)** `●●●●○` · [analisi](progetti/numenta-htm.md)  
+  Hierarchical Temporal Memory di Numenta (Hawkins): rappresentazioni sparse distribuite (SDR), apprendimento continuo di sequenze e rilevamento di anomalie/novita' basato sulla predizione neocorticale. Memoria che segnala esplicitamente la novita' come deviazione dalla predizione.
+- **[Voyager (MineDojo/Voyager)](https://github.com/MineDojo/Voyager)** `●●●○○` · 7.052★ · [analisi](progetti/minedojo-voyager.md)  
+  Agente LLM in Minecraft che esplora in modo aperto costruendo una skill library crescente (memoria procedurale di codice riusabile), con curriculum automatico guidato dalla novita' e loop di auto-verifica/auto-correzione. Memoria procedurale che si accresce da sola, curiosita'-driven e lifelong.
 
 ### Artificial life / emergenza & auto-organizzazione
 *18 progetti · 8 analizzati*
@@ -444,10 +456,12 @@ Il cluster tematico nato dal nome del tuo simulatore: agenti di coding 'fantasma
   Web app personale omonima, non correlata al tema del cerchio vuoto.
 
 ### Steganografia e occultamento
-*21 progetti · 21 analizzati*
+*22 progetti · 22 analizzati*
 
 Nascondere informazione in piena vista: steganografia linguistica neurale (payload cifrato dentro testo indistinguibile), schemi **provabilmente sicuri**, watermarking degli LLM e relativi attacchi di rimozione, fino alla collusione segreta fra agenti. Il 'cerchio vuoto' come canale che c'e' ma non si vede.
 
+- **[jwkirchenbauer/lm-watermarking (A Watermark for LLMs)](https://github.com/jwkirchenbauer/lm-watermarking)** `●●●●●` · 730★ · [analisi](progetti/jwkirchenbauer-lm-watermarking.md)  
+  Repo seminale del watermarking degli LLM (Kirchenbauer et al., ICML 2023): partiziona il vocabolario in una 'green list' pseudo-casuale e favorisce i token green durante il campionamento, impiantando una firma statistica rilevabile senza degradare il testo. Il canale nascosto per eccellenza dentro l'output di un LM.
 - **[THU-BPM/MarkLLM](https://github.com/THU-BPM/MarkLLM)** `●●●●●` · 1.014★ · [analisi](progetti/thu-bpm-markllm.md)  
   MarkLLM: toolkit open-source unificato per il watermarking degli LLM - impianto/rilevazione/visualizzazione di firme invisibili nel testo generato.
 - **[harvardnlp/NeuralSteganography (STEGASURAS)](https://github.com/harvardnlp/NeuralSteganography)** `●●●●●` · 214★ · [analisi](progetti/harvardnlp-neuralsteganography.md)  
