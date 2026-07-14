@@ -3,14 +3,15 @@
   "invocation": "/act --research-first ultracode (loop)",
   "branch": "void-lab-full",
   "scelta_utente": "due motori: SQLite (OLTP) + DuckDB (OLAP), tutto locale/offline, lanciatore COOP/COEP per OPFS",
-  "spec": "docs/specs/void-lab-v1.md + docs/act/recon/data-layer.md",
   "sections": [
-    { "id": "A", "name": "Fondazione dati locale", "status": "done", "verified": "Playwright via lanciatore: 2 motori ok, OPFS persistente sopravvive reload" },
-    { "id": "B", "name": "Il lab scrive nel database", "status": "in_progress" },
-    { "id": "C", "name": "Tavolo di analisi (DuckDB OLAP)", "status": "pending" },
-    { "id": "D", "name": "Rifinitura + note + ponte", "status": "pending" }
+    { "id": "A", "name": "Fondazione dati locale", "status": "done" },
+    { "id": "B", "name": "Il lab scrive nel database", "status": "done" },
+    { "id": "C", "name": "Tavolo di analisi (DuckDB OLAP)", "status": "done" },
+    { "id": "D", "name": "Rifinitura + note + ponte", "status": "done" }
   ],
-  "launcher": "avvia-lab.py / avvia-lab.bat (porta default 8777, header COOP/COEP)",
-  "note": "duckdb-eh.wasm ~34MB committato (offline per sempre). void-lab va aperto col lanciatore per OPFS.",
+  "status": "done",
+  "launcher": "avvia-lab.bat (doppio click) / avvia-lab.py — header COOP/COEP, porta default 8777",
+  "verifica_finale": "Playwright via lanciatore: 4 strati verdi. Determinismo intatto, OPFS persistente, catena sim->SQLite->DuckDB->analisi->grafico funzionante, svuota/export/import ok.",
+  "note": "duckdb-eh.wasm ~34MB committato (offline per sempre). Il lab va aperto col lanciatore per la persistenza.",
   "updated": "2026-07-14"
 }
