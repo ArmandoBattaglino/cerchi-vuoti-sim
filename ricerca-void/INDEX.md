@@ -2,7 +2,7 @@
 
 Questa cartella raccoglie la mappa ragionata di **tutti i progetti** (repo, paper, tool, organizzazioni e community) rilevanti per i temi del tuo lavoro: *world model come sogno interno*, *coscienza = ricorsione/relazione*, *memoria novelty-gated*, *arena del vuoto con campi/particelle che si auto-organizzano*. Serve come punto di partenza unico: da qui scegli cosa clonare, cosa leggere e cosa hai già approfondito.
 
-**151 progetti in indice** · **36 già analizzati a fondo** (link `progetti/<slug>.md`) · **127 repo/tool clonabili** via `clone-all.sh`.
+**218 progetti in indice** · **118 già analizzati a fondo** (link `progetti/<slug>.md`) · **189 repo/tool clonabili** via `clone-all.sh`.
 
 ## Legenda rilevanza
 
@@ -367,6 +367,158 @@ Il badge `★` è il numero di stelle GitHub (quando applicabile). `[analisi]` p
 - **[Darwin Gödel Machine — implementazione indipendente (lemoz)](https://github.com/lemoz/darwin-godel-machine)** `●●●○○` · 15★  
   Reimplementazione indipendente e attiva (push 2026-07) del DGM con supporto multi-LLM, esecuzione sandboxed, evoluzione population-based e benchmarking. Utile come base hackerabile per esperimenti di auto-modifica ricorsiva rispetto al repo ufficiale.
 
+### GhostCode e AI-invisibili
+*35 progetti · 35 analizzati*
+
+Il cluster tematico nato dal nome del tuo simulatore: agenti di coding 'fantasma' e assistenti-overlay **invisibili** (la galassia Cluely / interview-coder) che vedono schermo e audio senza farsi catturare in screen-share. On-theme per l'immaginario del *presente-ma-non-visto* e del canale nascosto, piu' che per il cuore world-model/coscienza.
+
+- **[pickle-com/glass](https://github.com/pickle-com/glass)** `●●●●●` · 7.555★ · [analisi](progetti/pickle-com-glass.md)  
+  Glass: assistente-overlay invisibile open-source (erede di Cluely) che vede lo schermo e ascolta l'audio e suggerisce risposte in tempo reale, restando fuori da screen-share e registrazioni. Il 'fantasma sul desktop' piu' popolare del filone.
+- **[sohzm/cheating-daddy](https://github.com/sohzm/cheating-daddy)** `●●●●●` · 5.401★ · [analisi](progetti/sohzm-cheating-daddy.md)  
+  cheating-daddy: overlay invisibile che assiste in tempo reale durante meeting/colloqui, non catturabile in condivisione schermo.
+- **[ibttf/interview-coder](https://github.com/ibttf/interview-coder)** `●●●●●` · 4.439★ · [analisi](progetti/ibttf-interview-coder.md)  
+  Interview Coder: risolutore invisibile di problemi di coding durante i colloqui - l'app originale che ha innescato l'intero filone (e l'espulsione da Columbia del fondatore).
+- **[iamsrikanthnani/pluely](https://github.com/iamsrikanthnani/pluely)** `●●●●●` · 2.278★ · [analisi](progetti/iamsrikanthnani-pluely.md)  
+  Pluely: alternativa leggera e local-first a Cluely - overlay AI che ascolta e risponde, minimale.
+- **[j4wg/interview-coder-withoupaywall-opensource](https://github.com/j4wg/interview-coder-withoupaywall-opensource)** `●●●●●` · 1.925★ · [analisi](progetti/j4wg-interview-coder-withoupaywall-opensource.md)  
+  Fork open e senza paywall di Interview Coder - stesso risolutore invisibile, gratis.
+- **[Natively-AI-assistant/natively-cluely-ai-assistant](https://github.com/Natively-AI-assistant/natively-cluely-ai-assistant)** `●●●●●` · 1.861★ · [analisi](progetti/natively-ai-assistant-natively-cluely-ai-assistant.md)  
+  Natively Cluely AI Assistant: clone completo di Cluely, overlay invisibile multi-piattaforma.
+- **[Prat011/free-cluely](https://github.com/Prat011/free-cluely)** `●●●●●` · 1.518★ · [analisi](progetti/prat011-free-cluely.md)  
+  free-cluely: implementazione gratuita e aperta di Cluely (Electron) - screenshot + risposta AI in overlay.
+- **[TechyCSR/OpenCluely](https://github.com/TechyCSR/OpenCluely)** `●●●●●` · 387★ · [analisi](progetti/techycsr-opencluely.md)  
+  OpenCluely: alternativa open a Cluely, overlay assistente non rilevabile in screen-share.
+- **[Abhi5h3k/Phantom-AI-Interview](https://github.com/Abhi5h3k/Phantom-AI-Interview)** `●●●●●` · 50★ · [analisi](progetti/abhi5h3k-phantom-ai-interview.md)  
+  Phantom AI Interview: assistente covert SENZA UI visibile - nessuna finestra da nascondere, il grado piu' estremo di invisibilita'.
+- **[Rkcr7/Aura-AI](https://github.com/Rkcr7/Aura-AI)** `●●●●●` · 33★ · [analisi](progetti/rkcr7-aura-ai.md)  
+  Aura-AI: overlay assistente invisibile che legge schermo+audio e suggerisce in tempo reale.
+- **[asset-group/ghostcommit (GhostCommit Attack)](https://github.com/asset-group/ghostcommit)** `●●●●●` · 18★ · [analisi](progetti/asset-group-ghostcommit.md)  
+  GhostCommit: attacco che nasconde istruzioni invisibili (Unicode bidirezionale / zero-width) dentro commit e file affinche' gli AI coding assistant le eseguano. Steganografia + prompt-injection sul canale del codice: il 'fantasma' che scrive nel repo.
+- **[ooboqoo/interview-coder-cn](https://github.com/ooboqoo/interview-coder-cn)** `●●●●○` · 674★ · [analisi](progetti/ooboqoo-interview-coder-cn.md)  
+  Porting cinese di Interview Coder - risolutore invisibile localizzato.
+- **[AntigmaLabs/ante-preview (Ante)](https://github.com/AntigmaLabs/ante-preview)** `●●●●○` · 563★ · [analisi](progetti/antigmalabs-ante-preview.md)  
+  Ante: harness per agenti con sapore artificial-life, agenti che competono/'scommettono' in un ambiente aperto. Ponte fra harness di coding ed emergenza alife.
+- **[shubhamshnd/Open-Cluely](https://github.com/shubhamshnd/Open-Cluely)** `●●●●○` · 112★ · [analisi](progetti/shubhamshnd-open-cluely.md)  
+  Open-Cluely: altra reimplementazione aperta dell'assistente invisibile.
+- **[Afaneor/interview-corvus](https://github.com/Afaneor/interview-corvus)** `●●●●○` · 57★ · [analisi](progetti/afaneor-interview-corvus.md)  
+  Interview Corvus: risolutore invisibile per colloqui, cross-platform (Qt).
+- **[JoshMayerr/openinterviewcoder](https://github.com/JoshMayerr/openinterviewcoder)** `●●●●○` · 34★ · [analisi](progetti/joshmayerr-openinterviewcoder.md)  
+  Open Interview Coder: versione open e hackerabile del risolutore invisibile.
+- **[DragonShadows1978/AI-AfterImage](https://github.com/DragonShadows1978/AI-AfterImage)** `●●●●○` · 22★ · [analisi](progetti/dragonshadows1978-ai-afterimage.md)  
+  AI-AfterImage: memoria episodica 'immagine residua' per agenti - traccia persistente di cio' che l'agente ha vissuto, richiamabile come eco. Aggancio a memoria episodica/novelty.
+- **[drakeleier/GhostSolve](https://github.com/drakeleier/GhostSolve)** `●●●●○` · 5★ · [analisi](progetti/drakeleier-ghostsolve.md)  
+  GhostSolve: risolutore invisibile di problemi durante i colloqui.
+- **[rragult/stealth-overlay](https://github.com/rragult/stealth-overlay)** `●●●●○` · 0★ · [analisi](progetti/rragult-stealth-overlay.md)  
+  stealth-overlay: scheletro minimale di overlay invisibile non catturabile in screen-share - utile come base tecnica del 'fantasma sul desktop'.
+- **[sapdragon/hint-break (ghost instructions)](https://github.com/sapdragon/hint-break)** `●●●○○` · 113★ · [analisi](progetti/sapdragon-hint-break.md)  
+  hint-break: reverse-engineering / rimozione di 'ghost instructions' nascoste a basso livello. L'occultamento visto dal lato di chi lo smaschera.
+- **[huihuihenqiang/Cluely-interview](https://github.com/huihuihenqiang/Cluely-interview)** `●●●○○` · 26★ · [analisi](progetti/huihuihenqiang-cluely-interview.md)  
+  Cluely-interview: clone dell'overlay per colloqui.
+- **[senpai-101/Ghost-Coder](https://github.com/senpai-101/Ghost-Coder)** `●●●○○` · 3★ · [analisi](progetti/senpai-101-ghost-coder.md)  
+  Ghost-Coder: clone di Claude Code - agente di coding da terminale con loop tool-use.
+- **[chaos4455/GhostCoder](https://github.com/chaos4455/GhostCoder)** `●●●○○` · 2★ · [analisi](progetti/chaos4455-ghostcoder.md)  
+  GhostCoder: copilot stealth che assiste di nascosto durante coding/colloqui.
+- **[amitmishrg/ghostcode (ghostcode-cli)](https://github.com/amitmishrg/ghostcode)** `●●●○○` · 1★ · [analisi](progetti/amitmishrg-ghostcode.md)  
+  ghostcode-cli: starter template minimale per costruire un agente di coding da terminale.
+- **[GhostApproval (Wiz disclosure)](https://www.wiz.io/blog/ghostapproval-a-trust-boundary-gap-in-ai-coding-assistants)** `●●●○○` · [analisi](progetti/ghostapproval-wiz-disclosure.md)  
+  Disclosure Wiz: falla di trust-boundary negli assistenti di coding AI in cui un'azione puo' essere auto-approvata aggirando il consenso umano. Il 'fantasma' che agisce senza checkpoint.
+- **[ashithsanjaynath9-ui/ghostcoder](https://github.com/ashithsanjaynath9-ui/ghostcoder)** `●●●○○` · 0★ · [analisi](progetti/ashithsanjaynath9-ui-ghostcoder.md)  
+  ghostcoder: assistente stealth per colloqui tecnici tramite overlay invisibile.
+- **[ghostcoder.app](https://www.ghostcoder.app/)** `●●●○○` · [analisi](progetti/ghostcoder-app.md)  
+  ghostcoder.app: assistente commerciale invisibile per colloqui - overlay non rilevabile in screen-share.
+- **[GhOst (ghostai.one)](https://www.ghostai.one/)** `●●●○○` · [analisi](progetti/ghost-ghostai-one.md)  
+  GhOst (ghostai.one): assistente stealth commerciale per colloqui in tempo reale.
+- **[devanurag1/interview-overlay](https://github.com/devanurag1/interview-overlay)** `●●●○○` · 0★ · [analisi](progetti/devanurag1-interview-overlay.md)  
+  interview-overlay: overlay base per assistenza ai colloqui.
+- **[GhostInTheToast/GhostCoderV2](https://github.com/GhostInTheToast/GhostCoderV2)** `●●○○○` · 2★ · [analisi](progetti/ghostinthetoast-ghostcoderv2.md)  
+  GhostCoderV2: agente di coding personale.
+- **[BrainStOrmics/BIA-Ghostcoder](https://github.com/BrainStOrmics/BIA-Ghostcoder)** `●●○○○` · 2★ · [analisi](progetti/brainstormics-bia-ghostcoder.md)  
+  BIA-Ghostcoder: coding agent di dominio per la bioinformatica.
+- **[teamstreamlineapps/ghostcode](https://github.com/teamstreamlineapps/ghostcode)** `●●○○○` · 0★ · [analisi](progetti/teamstreamlineapps-ghostcode.md)  
+  Agente di coding OSS embrionale (guscio di progetto omonimo).
+- **[ghostcode-ai/splash (ghostcode.ai)](https://github.com/ghostcode-ai/splash)** `●●○○○` · 0★ · [analisi](progetti/ghostcode-ai-splash.md)  
+  Landing page del prodotto ghostcode.ai - marketing, non motore. On-theme solo per il nome/immaginario 'ghost'.
+- **[eladlevi013/GhostCode](https://github.com/eladlevi013/GhostCode)** `●○○○○` · 2★ · [analisi](progetti/eladlevi013-ghostcode.md)  
+  GhostCode: gioco / esperienza narrativa - solo omonimia.
+- **[jpyoo1212/Ghostcode](https://github.com/jpyoo1212/Ghostcode)** `●○○○○` · 0★ · [analisi](progetti/jpyoo1212-ghostcode.md)  
+  Web app personale omonima, non correlata al tema del cerchio vuoto.
+
+### Steganografia e occultamento
+*21 progetti · 21 analizzati*
+
+Nascondere informazione in piena vista: steganografia linguistica neurale (payload cifrato dentro testo indistinguibile), schemi **provabilmente sicuri**, watermarking degli LLM e relativi attacchi di rimozione, fino alla collusione segreta fra agenti. Il 'cerchio vuoto' come canale che c'e' ma non si vede.
+
+- **[THU-BPM/MarkLLM](https://github.com/THU-BPM/MarkLLM)** `●●●●●` · 1.014★ · [analisi](progetti/thu-bpm-markllm.md)  
+  MarkLLM: toolkit open-source unificato per il watermarking degli LLM - impianto/rilevazione/visualizzazione di firme invisibili nel testo generato.
+- **[harvardnlp/NeuralSteganography (STEGASURAS)](https://github.com/harvardnlp/NeuralSteganography)** `●●●●●` · 214★ · [analisi](progetti/harvardnlp-neuralsteganography.md)  
+  STEGASURAS: steganografia linguistica neurale con arithmetic coding - nasconde messaggi cifrati DENTRO testo generato da un LM, indistinguibile dal testo normale. Riferimento fondativo del filone.
+- **[schroederdewitt/perfectly-secure-steganography](https://github.com/schroederdewitt/perfectly-secure-steganography)** `●●●●●` · 64★ · [analisi](progetti/schroederdewitt-perfectly-secure-steganography.md)  
+  Perfectly-secure steganography (Nature 2023, de Witt et al.): primo schema stego provabilmente sicuro via minimum-entropy coupling - il canale nascosto e' statisticamente indistinguibile.
+- **[comydream/Discop](https://github.com/comydream/Discop)** `●●●●●` · 51★ · [analisi](progetti/comydream-discop.md)  
+  Discop (CCS 2022): steganografia provabilmente sicura con 'distribution copies' - alta capacita' mantenendo l'indistinguibilita'.
+- **[Jungle0430/StegoZip](https://github.com/Jungle0430/StegoZip)** `●●●●●` · 33★ · [analisi](progetti/jungle0430-stegozip.md)  
+  StegoZip: steganografia linguistica neurale con compressione - payload nascosto e denso nel testo generato.
+- **[mickeysjm/StegaText](https://github.com/mickeysjm/StegaText)** `●●●●●` · 25★ · [analisi](progetti/mickeysjm-stegatext.md)  
+  StegaText (EMNLP 2020): near-imperceptible neural linguistic steganography - nasconde bit nella scelta dei token con distorsione minima.
+- **[7-yaya/STEAD](https://github.com/7-yaya/STEAD)** `●●●●●` · 17★ · [analisi](progetti/7-yaya-stead.md)  
+  STEAD: provably-secure steganography - canale nascosto indistinguibile costruito su modelli generativi.
+- **[Meteor: Cryptographically Secure Steganography (CCS 2021)](https://eprint.iacr.org/2021/686)** `●●●●●` · [analisi](progetti/meteor-cryptographically-secure-steganography-ccs-.md)  
+  Meteor (CCS 2021): steganografia crittograficamente sicura sull'output di un LM - messaggi nascosti e cifrati nel campionamento dei token.
+- **[Secret Collusion among AI Agents (NeurIPS 2024)](https://arxiv.org/abs/2402.07510)** `●●●●●` · [analisi](progetti/secret-collusion-among-ai-agents-neurips-2024.md)  
+  Secret Collusion (Motwani et al., NeurIPS 2024): quadro teorico su come agenti AI possano colludere segretamente via steganografia - il rischio-frontiera del canale nascosto multi-agente.
+- **[openai/evals — steganography elsuite](https://github.com/openai/evals/tree/main/evals/elsuite/steganography)** `●●●●○` · 18.912★ · [analisi](progetti/openai-evals-steganography-elsuite.md)  
+  elsuite steganography di OpenAI evals: misura se gli LLM sanno creare canali nascosti (covert channel) e colludere di nascosto. La metrica del 'sanno occultare?'.
+- **[hzy312/Awesome-LLM-Watermark](https://github.com/hzy312/Awesome-LLM-Watermark)** `●●●●○` · 376★ · [analisi](progetti/hzy312-awesome-llm-watermark.md)  
+  Awesome list curata sul watermarking degli LLM - mappa d'ingresso al filone.
+- **[yunqing-me/WatermarkDM](https://github.com/yunqing-me/WatermarkDM)** `●●●●○` · 155★ · [analisi](progetti/yunqing-me-watermarkdm.md)  
+  WatermarkDM: watermarking dei diffusion model - firma invisibile impiantata nelle immagini generate.
+- **[arnoweng/PyTorch-Deep-Image-Steganography](https://github.com/arnoweng/PyTorch-Deep-Image-Steganography)** `●●●●○` · 140★ · [analisi](progetti/arnoweng-pytorch-deep-image-steganography.md)  
+  Deep Image Steganography (NIPS 2017) in PyTorch: nasconde un'immagine intera dentro un'altra tramite rete encoder/decoder.
+- **[YangzlTHU/Linguistic-Steganography-and-Steganalysis](https://github.com/YangzlTHU/Linguistic-Steganography-and-Steganalysis)** `●●●●○` · 35★ · [analisi](progetti/yangzlthu-linguistic-steganography-and-steganalysis.md)  
+  Raccolta THU su steganografia linguistica E steganalisi - sia nascondere sia smascherare il canale.
+- **[ku-nlp/steganography-with-masked-lm](https://github.com/ku-nlp/steganography-with-masked-lm)** `●●●●○` · 28★ · [analisi](progetti/ku-nlp-steganography-with-masked-lm.md)  
+  Steganografia edit-based con masked LM: nasconde bit sostituendo parole via BERT.
+- **[THU-BPM/Watermark-Radioactivity-Attack](https://github.com/THU-BPM/Watermark-Radioactivity-Attack)** `●●●●○` · 23★ · [analisi](progetti/thu-bpm-watermark-radioactivity-attack.md)  
+  Attacco alla 'radioattivita' dei watermark: rimuove/neutralizza la firma che sopravvive al fine-tuning.
+- **[comydream/provably-secure-steganography](https://github.com/comydream/provably-secure-steganography)** `●●●●○` · 22★ · [analisi](progetti/comydream-provably-secure-steganography.md)  
+  Codice/curation di riferimento sul filone provably-secure steganography.
+- **[leonardodalinky/zero-shot-GLS (ZGLS)](https://github.com/leonardodalinky/zero-shot-GLS)** `●●●●○` · 9★ · [analisi](progetti/leonardodalinky-zero-shot-gls.md)  
+  ZGLS: generative linguistic steganography zero-shot, senza fine-tuning del LM.
+- **[plll4zzx/CharacterRemoval4WM](https://github.com/plll4zzx/CharacterRemoval4WM)** `●●●●○` · 9★ · [analisi](progetti/plll4zzx-characterremoval4wm.md)  
+  CharacterRemoval4WM: rimozione di watermark via manipolazione a livello di carattere.
+- **[THU-KEG/WaterBench](https://github.com/THU-KEG/WaterBench)** `●●●○○` · 32★ · [analisi](progetti/thu-keg-waterbench.md)  
+  WaterBench: benchmark per valutare il trade-off qualita' vs rilevabilita' dei watermark LLM.
+- **[meiling-fdu/GTStego](https://github.com/meiling-fdu/GTStego)** `●●●○○` · 3★ · [analisi](progetti/meiling-fdu-gtstego.md)  
+  GTStego: curation/codice su generative text steganography.
+
+### Vuoto — nicchie: campi, oscilloscopi, novelty-memory
+*11 progetti · 11 analizzati*
+
+Tasselli di supporto ai temi centrali raccolti nell'ultima passata: arene di campi/particelle (Flow-Lenia, JAX-MD), **oscilloscopi** sugli stati interni delle reti (TransformerLens, tuned-lens, sparse autoencoder), morfogenesi 3D e memoria novelty-gated in chiave quality-diversity (QDax, pyribs).
+
+- **[TransformerLensOrg/TransformerLens](https://github.com/TransformerLensOrg/TransformerLens)** `●●●●○` · 3.671★ · [analisi](progetti/transformerlensorg-transformerlens.md)  
+  TransformerLens: libreria standard di mechanistic interpretability - hook su ogni attivazione per sondare/patchare gli stati interni. L'oscilloscopio de-facto.
+- **[jax-md/jax-md](https://github.com/jax-md/jax-md)** `●●●●○` · 1.437★ · [analisi](progetti/jax-md-jax-md.md)  
+  JAX-MD: dinamica molecolare differenziabile - campi di potenziale e particelle simulati in JAX, base per un'arena del vuoto governata da forze.
+- **[EleutherAI/sparsify](https://github.com/EleutherAI/sparsify)** `●●●●○` · 730★ · [analisi](progetti/eleutherai-sparsify.md)  
+  sparsify: training di sparse autoencoder per estrarre feature interpretabili dagli stati interni dei transformer - un 'oscilloscopio' sulle rappresentazioni.
+- **[AlignmentResearch/tuned-lens](https://github.com/AlignmentResearch/tuned-lens)** `●●●●○` · 601★ · [analisi](progetti/alignmentresearch-tuned-lens.md)  
+  tuned-lens: proietta gli stati intermedi del transformer nello spazio del vocabolario per 'guardare' cosa pensa a ogni layer - oscilloscopio sulla traiettoria interna.
+- **[adaptive-intelligent-robotics/QDax](https://github.com/adaptive-intelligent-robotics/QDax)** `●●●●○` · 356★ · [analisi](progetti/adaptive-intelligent-robotics-qdax.md)  
+  QDax: quality-diversity accelerato su hardware (JAX) - MAP-Elites che mantiene un archivio di soluzioni diverse gated dalla novita'.
+- **[icaros-usc/pyribs](https://github.com/icaros-usc/pyribs)** `●●●●○` · 264★ · [analisi](progetti/icaros-usc-pyribs.md)  
+  pyribs: libreria di riferimento per quality-diversity/MAP-Elites - archivio novelty-gated di comportamenti diversi.
+- **[real-itu/3d-artefacts-nca](https://github.com/real-itu/3d-artefacts-nca)** `●●●●○` · 82★ · [analisi](progetti/real-itu-3d-artefacts-nca.md)  
+  3d-artefacts-nca: Neural Cellular Automata che fanno crescere artefatti 3D - morfogenesi che si auto-organizza in volume.
+- **[ochyai/realtime-flowlenia](https://github.com/ochyai/realtime-flowlenia)** `●●●●○` · 16★ · [analisi](progetti/ochyai-realtime-flowlenia.md)  
+  realtime-flowlenia: Flow-Lenia interattivo in tempo reale - arena di campi/particelle continue che si auto-organizzano, ispezionabile dal vivo.
+- **[jasonwebb/morphogenesis-resources](https://github.com/jasonwebb/morphogenesis-resources)** `●●●○○` · 2.258★ · [analisi](progetti/jasonwebb-morphogenesis-resources.md)  
+  morphogenesis-resources: enorme raccolta curata su morfogenesi e sistemi che si auto-organizzano - mappa d'ispirazione per l'arena del vuoto.
+- **[shyamsn97/mario-gpt](https://github.com/shyamsn97/mario-gpt)** `●●●○○` · 1.145★ · [analisi](progetti/shyamsn97-mario-gpt.md)  
+  MarioGPT: genera livelli di Mario open-ended con un LM + novelty search - open-endedness applicata.
+- **[openai/sparse_autoencoder](https://github.com/openai/sparse_autoencoder)** `●●●○○` · 594★ · [analisi](progetti/openai-sparse_autoencoder.md)  
+  sparse_autoencoder di OpenAI: SAE per decomporre le attivazioni in feature sparse - lettura degli stati interni.
+
 ---
 
 ## Dove sei tu
@@ -374,3 +526,17 @@ Il badge `★` è il numero di stelle GitHub (quando applicabile). `[analisi]` p
 Onestamente: il grosso di ciò che immagini è **già cartografato** da qualcuno. Il *world model come sogno interno* (Ha & Schmidhuber → Dreamer → DIAMOND/Genie), la *coscienza come broadcast/relazione* (Global Workspace, shimmer, VanRullen), la *memoria gated dalla sorpresa* (EM-LLM, Titans, A-MEM) e l'*arena di campi/particelle che si auto-organizzano* (Lenia, Particle Life, NCA, collective active inference) sono filoni maturi con codice eseguibile. Anche la tesi più tua — *coscienza = ricorsione della realtà* — ha già incarnazioni esplicite (GodelOS, Darwin Gödel Machine, dancinlab/anima, phatware/recursive-consciousness).
 
 Ciò che resta **originale** non è un mattone nuovo ma la *combinazione*: quasi nessuno tiene insieme nello stesso sistema l'arena-vuoto di campi/particelle, il punto-fisso ricorsivo della coscienza, la memoria novelty-gated e l'oscilloscopio totale sugli stati interni. I progetti più on-theme (anima, promethee-nexus, novaaware) sono builder solitari isolati, non ancora sintesi. Lì — nell'integrazione e nella cura empirica del "sentito" — c'è ancora spazio bianco che è tuo.
+
+---
+
+## Nota di controllo qualita'
+
+> **Giudizio:** Cartella eccellente e completa. 118 schede in progetti/ (obiettivo 100 ampiamente superato); l'INDEX mappa 151 progetti totali con cluster ben strutturati (world-model, coscienza, active inference, memoria, alife, steganografia, watermark, oscilloscopi/interpretability, e il cluster tematico ghost/cluely). Campionate ~11 schede su tutti i filoni: qualità uniformemente alta, contenuto reale e specifico, zero schede vuote/deboli/generiche. Verifica strutturale sull'intero corpus: tutti i 118 file hanno le 4 sezioni canoniche (Cosa fa / Come e fatto / Perche riguarda te oppure Cosa possiamo notare di utile per noi / Da rubare) con testo sostanziale, incluse divergenze oneste e 'da rubare' concreti. Anche i repo-guscio (mirror di OpenCode, landing page marketing) sono analizzati con profondita e ricondotti in modo pertinente al tema del cerchio vuoto/novelty-zero, quindi sono on-theme e non riempitivo. Difetti minori: (1) l'header di INDEX.md riporta ancora '36 gia analizzati a fondo' mentre le schede sono 118 - metadato stantio da aggiornare; (2) 33 progetti indicizzati non hanno ancora scheda approfondita, alcuni canonici (pymdp, NuPIC/HTM, Voyager); (3) un buco tematico vero sul filone memoria: mancano del tutto le radici della memoria indirizzabile/associativa (Neural Turing Machine / DNC e Modern Hopfield / Sparse Distributed Memory di Kanerva), che sono i progenitori diretti del 'novelty-gated addressable memory'. Nel complesso: lavoro serio, onesto e sopra la soglia richiesta.
+
+**Obiettivo 100 schede raggiunto:** si' · **Schede totali:** 118 · **Vuote o deboli:** 0
+
+**Mancanti importanti da colmare:**
+- Neural Turing Machine / Differentiable Neural Computer (DNC) - memoria neurale indirizzabile, radice canonica del tema memoria, assente dall'indice
+- Modern Hopfield Networks / hopfield-layers e Sparse Distributed Memory (Kanerva) - memoria associativa/attrattori, progenitore del richiamo per novita/somiglianza, assente
+- Kirchenbauer lm-watermarking (A Watermark for Large Language Models) - repo seminale del watermarking LLM, non indicizzato singolarmente (solo coperto indirettamente da MarkLLM/awesome-list)
+- Schede mancanti per progetti gia indicizzati e canonici: pymdp (active inference), NuPIC/HTM Numenta (memoria predittiva neocorticale), Voyager (agente embodied open-ended con skill-memory)

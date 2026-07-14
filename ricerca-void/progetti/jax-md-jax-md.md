@@ -1,0 +1,28 @@
+# JAX MD — Molecular Dynamics differenziabile e accelerata ([repo](https://github.com/jax-md/jax-md))
+
+Stelle: ~1.4k · Linguaggio: Python/JAX (notebook) · Ultima attività: luglio 2026 (attivo) · Licenza: Apache-2.0
+
+## Cosa fa
+JAX MD è un motore generico di dinamica molecolare scritto interamente in JAX, quindi **end-to-end differenziabile** e hardware-accelerato (CPU/GPU/TPU dallo stesso codice). Simula sistemi di particelle che interagiscono via campi di potenziale (Lennard-Jones, soft-sphere, EAM, potenziali neurali, ecc.), con integratori per gli ensemble standard (NVE energia costante, NVT temperatura costante, NPT pressione costante), minimizzazione dell'energia (FIRE), condizioni al contorno periodiche e non, neighbor lists efficienti per scalare a molte particelle. La differenza rispetto a LAMMPS/HOOMD non è la fisica ma il *paradigma*: siccome tutto è differenziabile, puoi prendere il gradiente di *qualsiasi* osservabile finale rispetto a *qualsiasi* parametro iniziale — posizioni, parametri del potenziale, persino la topologia — e usarlo per ottimizzare, invertire, o imparare la dinamica.
+
+## Come è fatto
+L'idea architetturale chiave è **funzionale e data-driven**: niente oggetti stateful, niente classi pesanti. Lo stato è tuple di array; le funzioni trasformano stato in stato. I mattoni:
+- **Space** = una coppia `(displacement_fn, shift_fn)`. `displacement_fn(Ra, Rb)` dà il vettore tra due punti (rispettando le condizioni periodiche); `shift_fn(R, dR)` sposta un punto. Astrarre lo spazio in due funzioni significa che lo stesso codice di simulazione gira su spazio libero, periodico, o deformato senza modifiche.
+- **Energy** = funzioni che, dato lo spazio, costruiscono `energy_fn(R) → scalare`. La **forza è semplicemente `-grad(energy_fn)`** via autodiff: zero codice manuale per le derivate, che nei pacchetti tradizionali sono migliaia di righe.
+- **Simulate** = integratori costruiti come coppie `(init_fn, apply_fn)`: `init_fn` prepara lo stato, `apply_fn` fa un passo. Un intero rollout è un `lax.scan` compilato in XLA.
+Il trucco che sblocca tutto è la **differenziabilità attraverso l'intera traiettoria**: puoi retropropagare dal risultato finale (es. la forma di un cristallo dopo 10000 step) fino ai parametri iniziali. Con l'*implicit differentiation* (uno dei notebook) puoi persino differenziare attraverso stati di equilibrio senza srotolare tutta la traiettoria.
+
+## Cosa possiamo notare di utile per noi
+Questo è il candidato più forte come **substrato apprendibile** per l'arena del vuoto/particelle, e differisce da Flow-Lenia in un punto decisivo: **la differenziabilità end-to-end**. Se la tua arena è scritta in JAX MD, non è solo una simulazione da guardare — è un oggetto *ottimizzabile*. Puoi chiedere: "quale campo di potenziale fa emergere enti con questa proprietà?" e ottenere la risposta per discesa del gradiente invece che per tentativi. Questo trasforma l'arena da spettacolo a strumento.
+
+Connessioni specifiche al tuo lavoro:
+- **Arena/particelle in campi di potenziale**: è esattamente l'ontologia che descrivi — il "vuoto" è lo spazio, il "qualcosa" sono le particelle, la fisica è il potenziale. E il potenziale può essere una **rete neurale** (`neural_networks.py` negli esempi): l'arena può *imparare le proprie leggi*. Un vuoto le cui regole non sono imposte ma addestrate è molto più vicino al tuo interesse per l'emergenza genuina.
+- **Oscilloscopi su stati interni come osservabili differenziabili**: qualunque quantità tu legga dall'arena (energia locale, ordine strutturale, entropia, una metrica di novelty) è una funzione JAX differenziabile dello stato. Quindi non solo *misuri* lo stato interno — puoi retropropagare *attraverso* la misura per capire quali condizioni la producono, o per addestrare l'arena a massimizzarla/minimizzarla. L'oscilloscopio diventa una leva, non solo un sensore.
+- **World-model-come-sogno + coscienza=ricorsione**: JAX MD è veloce e compilato, ideale come ambiente sognato dentro cui un agente pianifica per gradiente (differentiable planning). E la *ricorsione* — un sistema che modella sé stesso — diventa concreta: un potenziale neurale che prende come input una *statistica del proprio stato passato* chiude il loop di auto-riferimento in modo differenziabile e addestrabile. Il gradiente attraverso il loop ricorsivo è ciò che JAX MD rende computabile.
+
+Dove diverge: JAX MD è pensato per fisica quantitativa (materiali, glass, elasticità), non per artificial life; non ha conservazione-di-massa-come-campo continuo (è particellare, non continuo come Lenia), né rendering, né interattività real-time pronti. È una libreria di ricerca con "sharp edges" e API che cambiano. Devi costruirci sopra l'arena e gli oscilloscopi. Ma è l'unico dei cinque che ti dà **il gradiente attraverso il tempo** — la primitiva che serve se vuoi che l'arena *impari* invece di solo *girare*.
+
+## Da rubare
+1. **Scrivi l'arena come `energy_fn` differenziabile con forza = `-grad(energy)`**: elimini a costo zero tutto il codice manuale delle derivate e ottieni un'arena su cui puoi fare ottimizzazione/inversione, non solo forward simulation.
+2. **Potenziale neurale (arena che impara le sue leggi)**: usa il pattern di `neural_networks.py` per rendere le regole del vuoto un oggetto addestrabile — un vuoto le cui dinamiche emergono da un training, non da un'equazione imposta.
+3. **Implicit differentiation attraverso stati di equilibrio**: per chiudere il loop ricorsivo (arena che modella sé stessa) e propagare gradienti attraverso lunghe traiettorie o punti fissi senza esplodere la memoria — la primitiva tecnica per rendere computabile "coscienza = ricorsione".

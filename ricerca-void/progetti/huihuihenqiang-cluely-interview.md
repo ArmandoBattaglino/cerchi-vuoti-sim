@@ -1,0 +1,17 @@
+# Cluely-interview / InterviewBot — [huihuihenqiang/Cluely-interview](https://github.com/huihuihenqiang/Cluely-interview)
+
+⭐ 26 · Python (PyQt) · ultimo push 2024-12-14 · licenza MIT
+
+## Cosa fa
+È un assistente colloqui in Python/PyQt con interfaccia trasparente, variante cinese del pattern "Cluely". Fa quattro cose concrete e già funzionanti: dialoga con un LLM (GPT-4-turbo) per simulare domande/risposte di colloquio; fa speech-to-text via il servizio vocale di Baidu; cattura uno screenshot dello schermo e riconosce via OCR (Tesseract) i problemi di programmazione, restituendo il codice; e costruisce una piccola knowledge base custom da un Excel di coppie domanda/risposta per rispondere senza chiamare l'LLM. L'autore è esplicito nel dichiararlo strumento di allenamento e nel condannare l'uso per barare. È dichiaratamente un demo: dialogo a turno singolo, STT solo in cinese e solo del proprio microfono.
+
+## Come è fatto
+Applicazione desktop monolitica PyQt (`main.py`) con finestra trasparente a quattro modalità di opacità. La pipeline è semplice e lineare: input (testo/voce/screenshot) → routing → risposta. Per le domande di coding: screenshot → Tesseract OCR → prompt all'LLM → codice. Per le domande generali: opzionalmente prima consulta la knowledge base locale (costruita con `query.py` che genera un Excel indicizzato, con jieba per la segmentazione del cinese) e solo in fallback l'LLM — motivata dal fatto che "se la KB è fatta bene l'effetto non è inferiore all'LLM e l'LLM è troppo lento". Personalizzazione via upload del curriculum (PDF) per risposte contestuali. Configurazione via `config.json` (chiavi OpenAI, Baidu, path di Tesseract).
+
+## Cosa possiamo notare di utile per noi
+L'elemento più interessante per il nostro lavoro non è lo stealth (qui è solo una finestra trasparente, primitiva rispetto agli overlay Electron con content-protection) ma la **scelta esplicita KB-first, LLM-fallback motivata dalla latenza**: l'autore preferisce recuperare da una memoria locale strutturata e usa l'LLM solo quando il recupero fallisce. È il germe di un'architettura *memory-gated*: la memoria non è un contorno ma il primo canale di risposta, e la generazione costosa è l'eccezione. Nel nostro contesto di memoria novelty-gated questo è il rovescio speculare: loro fanno gate sulla *copertura* (se la KB copre, non generare), noi facciamo gate sulla *novità* (se è nuovo, memorizza). Vale la pena tenere entrambi i cardini in mente: un sistema maturo probabilmente ha sia un retrieve-gate in lettura sia un novelty-gate in scrittura. Dove diverge nettamente: nessun world-model, nessuna ricorsione, nessuno stato interno osservabile — è I/O stateless a turno singolo. L'uso di jieba + Excel come "KB del povero" è un promemoria che una memoria utile non richiede vector-DB: coppie chiave/valore ben curate con un buon matching testuale bastano per un MVP.
+
+## Da rubare
+1. **Architettura retrieve-first con LLM come fallback esplicito**, motivata dalla latenza: da affiancare al novelty-gate in scrittura per avere un doppio gate (copertura in lettura, novità in scrittura).
+2. **KB minimale Excel + segmentazione + matching testuale** come baseline di memoria prima di introdurre embeddings: utile per prototipare velocemente la memoria dell'arena.
+3. **Il framing etico esplicito nel README** (strumento di training, non di cheating): pattern da riusare per progetti dual-use dove la stessa tecnologia serve a scopi legittimi e discutibili.

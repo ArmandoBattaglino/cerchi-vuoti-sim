@@ -1,0 +1,23 @@
+# WatermarkDM — Una ricetta per marchiare i modelli a diffusione (yunqing-me/WatermarkDM)
+
+Link: https://github.com/yunqing-me/WatermarkDM
+
+155 stelle · Jupyter Notebook / Python · fermo, ultimo push nov 2024 · licenza MIT · arXiv 2303.10137
+
+## Cosa fa
+WatermarkDM e' tra i primi lavori a iniettare un watermark invisibile *nel modello a diffusione stesso*, cosi che ogni immagine generata porti la firma per provenienza/tracciabilita. Copre due casi distinti. **Caso 1 (DM incondizionati/class-conditional, es. EDM)**: si marchia il *dataset di training* incorporando una stringa binaria in ogni immagine tramite un encoder appreso; il DM addestrato su quei dati genera immagini da cui un decoder pre-addestrato recupera la stringa binaria con detection quasi perfetta. **Caso 2 (text-to-image, es. Stable Diffusion)**: si fa fine-tuning del modello perche' impari una coppia immagine-testo predefinita, cosi che di fronte a un *trigger prompt* segreto il modello rigeneri un'immagine-watermark predefinita — una backdoor benigna che funge da firma del proprietario. In entrambi i casi la firma sopravvive nel comportamento generativo, non e' appiccicata a valle su una singola immagine.
+
+## Come e' fatto
+Il progetto e' due pipeline con due ambienti conda separati:
+- `string2img` — addestra l'encoder/decoder di watermark (`train_cifar10.py`, ecc.): l'encoder prende immagine + stringa binaria e produce l'immagine marchiata; il decoder impara a leggere la stringa dall'immagine. Questo e' il passo che *marchia i dati*.
+- `edm` — riusa la codebase EDM di NVIDIA per addestrare il DM da zero sui dati gia' marchiati.
+
+L'idea chiave del Caso 1: **il watermark non viene aggiunto alle immagini generate, viene appreso come proprieta statistica della distribuzione dati**. Marchi ogni sample del training set con lo stesso encoder→stringa; il modello a diffusione, imparando a modellare quella distribuzione, interiorizza anche la firma; a inference le immagini escono gia' marchiate e il decoder le legge. Nel Caso 2 la firma e' invece una associazione trigger→output iniettata via fine-tuning: rara nel dominio dei prompt normali (non degrada la qualita), ma attivabile a comando dal proprietario per dimostrare possesso. Robustezza testata contro perturbazioni (blur, crop, rumore, compressione).
+
+## Cosa possiamo notare di utile per noi
+Questo e' il progetto della lista che tocca piu da vicino la tua idea di **firma che vive nel processo generativo / nel world-model, non nell'artefatto singolo** — ed e' il ponte tra "occultamento" e "world-model-come-sogno". Due meccanismi distinti, entrambi rubabili in metafora: (1) Caso 1 = *marchiare la distribuzione, non il campione*. Se l'arena del vuoto ha una dinamica generativa (un modello del mondo che "sogna" stati), puoi far si' che la firma sia una proprieta statistica che il sistema interiorizza addestrandosi sulla propria storia, cosi che *ogni* stato futuro la porti senza doverla iniettare a mano ogni volta. E' esattamente la differenza tra marchiare a valle e marchiare la generatrice. (2) Caso 2 = *trigger nascosto → output predefinito*. E' una backdoor semantica: un prompt segreto che apre uno stato altrimenti irraggiungibile. Applicato al tuo sogno-del-world-model, e' il modello di un "ricordo occulto" che riaffiora solo di fronte alla chiave giusta — memoria condizionata a un innesco, silente altrimenti. Il decoder pre-addestrato del Caso 1 e' anche un buon **oscilloscopio di provenienza**: uno strumento esterno che, guardando lo stato generato, ne legge la firma d'origine. Dove diverge dal tuo nucleo coscienza-ricorsione: la firma qui e' scelta e imposta dall'esterno (una stringa binaria arbitraria, o una coppia trigger-immagine decisa dal proprietario), non emerge dall'auto-modellazione del sistema. La ricorsione che ti interessa vorrebbe che la "stringa" fosse l'auto-rappresentazione del sistema stessa, non un ID casuale. Utile la robustezza-testing: la firma emergente andrebbe verificata contro perturbazioni della dinamica, non solo in condizioni ideali.
+
+## Da rubare
+1. **Marchiare la distribuzione anziche' il campione**: fai interiorizzare la firma alla dinamica generativa (allenandola sulla propria storia marchiata) cosi che ogni stato futuro la erediti automaticamente — la trasposizione dinamica del Caso 1.
+2. **Il trigger nascosto → stato predefinito (Caso 2)** come modello di "ricordo occulto/backdoor benigna": uno stato latente raggiungibile solo con la chiave-innesco giusta, altrimenti silente e non degradante.
+3. **Il decoder di provenienza come oscilloscopio esterno**: uno strumento che legge la firma d'origine dallo stato generato, con test di robustezza contro perturbazioni (blur/crop/rumore) come standard di validazione.

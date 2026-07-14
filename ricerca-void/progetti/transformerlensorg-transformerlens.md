@@ -1,0 +1,22 @@
+# TransformerLens — [TransformerLensOrg/TransformerLens](https://github.com/TransformerLensOrg/TransformerLens)
+
+3.671 stelle · Python · attivo (push lug 2026) · licenza MIT
+
+## Cosa fa
+TransformerLens è la libreria di riferimento per l'interpretabilità meccanicistica dei modelli GPT-style: prende un modello addestrato e ti dà accesso completo alle sue attivazioni interne durante il forward pass. Carica 9.000+ modelli open source su 50+ famiglie architetturali e ti permette di fare cache di qualsiasi attivazione interna (residual stream, output di ogni testa di attenzione, MLP, ecc.). Non solo leggere: puoi inserire funzioni ("hook") che *modificano, rimuovono o sostituiscono* le attivazioni mentre il modello gira. È lo strumento con cui si fanno activation patching, ablation, direct logit attribution, ricerca di circuiti e induction heads.
+
+## Come è fatto
+L'idea chiave è il sistema di **hook points**. Ogni tensore interessante nel forward pass è avvolto in un `HookPoint` identificato da un nome canonico (es. `blocks.3.attn.hook_z`). Con `run_with_cache` catturi tutte queste attivazioni in un dizionario; con `run_with_hooks` registri callback che ricevono il tensore e il contesto e possono restituirne una versione modificata. Questo trasforma il modello da scatola nera in un banco strumenti dove ogni segnale interno è un connettore accessibile. La v3 introduce `TransformerBridge`, un adattatore che mappa i pesi grezzi di HuggingFace preservando la numerica esatta (con una modalità di compatibilità che ripristina il folding di LayerNorm e il centering dei pesi del vecchio `HookedTransformer`). La convenzione dei nomi degli hook è ciò che rende gli esperimenti riproducibili e condivisibili.
+
+## Cosa possiamo notare di utile per noi
+Questo è il **banco-oscilloscopio di riferimento**, e la lezione più forte per il tuo lavoro non è il transformer in sé ma l'**architettura degli hook**:
+- **Ogni segnale interno deve avere un nome canonico e un punto di aggancio**. Se vuoi costruire oscilloscopi sull'arena del vuoto / sulle particelle / sugli stati del world-model, la mossa vincente è instrumentare la simulazione con `HookPoint` nominati in modo sistematico (`arena.step.field`, `particle.42.state`, `worldmodel.latent`). Una volta che ogni stato ha un nome stabile, sonde, logging, visualizzazione e *interventi* diventano gratis e componibili — non devi cablare a mano ogni osservazione.
+- **Read + Write dallo stesso punto**: la vera potenza di TransformerLens è che l'hook non solo legge ma *scrive*. Per la tua ricerca questo abilita gli **esperimenti causali**: non "guardo lo stato del vuoto", ma "sostituisco lo stato del vuoto con quello di un'altra run e vedo cosa cambia" (activation patching). È il modo per passare da correlazione a causalità sui tuoi fenomeni emergenti — es. iniettare uno stato "novel" e vedere se il sistema lo propaga o lo assorbe.
+- **Ablation come test di necessità**: azzerare una componente e misurare il degrado dell'output è il modo canonico per scoprire "quale parte del substrato è portante". Applicabile a "quale particella / quale regione del vuoto è necessaria perché emerga il pattern".
+- **Ricorsione e circuiti**: il campo cerca "circuiti" — sottografi che implementano un algoritmo. La tua tesi coscienza=ricorsione può essere resa operativa cercando cicli di feedback nel tuo sistema con gli stessi strumenti (patching + ablation) usati per gli induction heads.
+- **Dove diverge**: TransformerLens opera su una rete a strati con forward pass fisso e differenziabile; la tua arena è un sistema dinamico/temporale, potenzialmente non differenziabile. L'analogia dei layer diventa l'analogia dei *timestep*: fai cache e patching lungo l'asse tempo, non l'asse profondità.
+
+## Da rubare
+1. **Sistema di HookPoint nominati per la simulazione**: avvolgi ogni stato interno della tua arena/particelle/world-model in un punto di aggancio con nome canonico stabile, così logging, sonde e interventi diventano componibili e condivisibili come esperimenti.
+2. **`run_with_cache` come primitiva di osservazione**: una singola chiamata che gira la simulazione e restituisce un dizionario completo di tutti gli stati interni di quel run — la base per ogni oscilloscopio successivo.
+3. **Activation patching temporale per la causalità**: sostituisci lo stato interno da una run in un'altra (o iniettane uno "novel") e misura la divergenza dell'evoluzione — il test causale per capire cosa il vuoto propaga, assorbe o dimentica.

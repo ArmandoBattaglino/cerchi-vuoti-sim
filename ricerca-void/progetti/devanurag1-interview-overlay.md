@@ -1,0 +1,17 @@
+# Interview Overlay — Live AI Edition — [devanurag1/interview-overlay](https://github.com/devanurag1/interview-overlay)
+
+⭐ 0 · Python · ultimo push 2026-04-02 · nessuna licenza dichiarata
+
+## Cosa fa
+Overlay flottante per Windows, invisibile alla cattura schermo, che ascolta la chiamata del colloquio, trascrive in tempo reale le domande dell'intervistatore e mostra risposte generate dall'AI, invisibili allo screen-sharing di Zoom/Google Meet. La differenza chiave rispetto agli altri overlay del filone: cattura l'audio *di sistema* (le casse/cuffie via WASAPI loopback), non solo il microfono — quindi sente la voce dell'interlocutore, non la tua. Ha una libreria Q&A offline curata a mano per domande comuni (navigabile con le frecce) come fallback all'AI. UI scura sempre-in-primo-piano, draggabile, con opacità ciclabile. È un singolo file Python (`interview_overlay.py`), progetto minimo (0 stelle, 10 KB).
+
+## Come è fatto
+Script Python singolo con dipendenze essenziali: `pyaudiowpatch` per la cattura loopback WASAPI dell'audio di sistema, `SpeechRecognition` (Google Speech Recognition) per la trascrizione, `google-generativeai` per le risposte Gemini. La pipeline dichiarata è lineare: audio Zoom/Meet → cattura loopback WASAPI → Google Speech Recognition → Gemini → risposta sull'overlay. L'invisibilità usa l'API Windows `WDA_EXCLUDEFROMCAPTURE` (richiede Windows 10 build 19041+). La chiave Gemini si inserisce al primo avvio via prompt runtime — non committata. La libreria Q&A offline è hard-coded/curata, consultabile senza chiamare l'AI, con navigazione a frecce.
+
+## Cosa possiamo notare di utile per noi
+L'insight più trasferibile qui è la **cattura del canale "dell'altro" via loopback WASAPI**: mentre tutti gli altri overlay del filone sentono il proprio microfono, questo ascolta l'output audio di sistema, cioè osserva l'ambiente/interlocutore invece di sé stesso. È una distinzione di prospettiva rilevante per chi progetta un agente che deve percepire *l'esterno* (l'arena, le altre particelle) e non il proprio stato — un promemoria concreto che la scelta del canale di percezione determina cosa il sistema può modellare. Il secondo elemento è di nuovo il pattern **libreria offline curata come fallback alla generazione** (come in Cluely-interview): una memoria a bassa latenza consultata prima/al posto dell'LLM, qui addirittura hand-curated e navigabile — versione estrema del retrieve-first. Dove diverge da noi: è la pipeline più stateless e lineare del filone, senza world-model, senza gating adattivo (nessun VAD: cattura continua), senza stato interno osservabile oltre alla trascrizione mostrata. Il minimalismo (un file, tre dipendenze) è però un buon promemoria di quanto poco serva per un percepisci→ragiona→mostra funzionante, se il canale di percezione giusto è scelto bene.
+
+## Da rubare
+1. **Cattura audio di sistema via WASAPI loopback** (`pyaudiowpatch`): percepire il canale "dell'ambiente/altro" invece del proprio microfono — modello per la percezione esterna di un agente nell'arena.
+2. **Libreria offline curata come layer di risposta a latenza zero** davanti alla generazione: variante hand-curated del retrieve-first, utile come memoria di base pre-caricata.
+3. **Il minimo vitale percepisci→ragiona→mostra in un singolo file**: baseline ultra-scarna per prototipare un loop di osservazione, dove l'unica scelta di design che conta davvero è quale canale di input si aggancia.

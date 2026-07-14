@@ -1,0 +1,26 @@
+# Genie: Generative Interactive Environments — [arXiv:2402.15391](https://arxiv.org/abs/2402.15391)
+
+Paper · DeepMind (Bruce, Dennis, Edwards et al., ICML 2024, Outstanding Paper) · 11B parametri · addestrato su ~200k ore di video di platformer 2D non etichettati · non open-source (solo paper + blog per Genie 2/3)
+
+## Cosa fa
+Genie apprende, da **puro video non etichettato** (nessuna azione, nessuna ricompensa, nessun testo), un *world model* controllabile frame-by-frame: dai un'immagine — una foto, uno sketch, un frame generato — e ottieni un mondo giocabile in cui premi un "tasto" e il modello genera il fotogramma successivo coerente. La cosa notevole non è la grafica ma che le **azioni non gli sono mai state fornite**: il modello *scopre da solo* un piccolo vocabolario di azioni latenti (8 nel paper) osservando come i frame cambiano nel tempo. Questo lo rende un "foundation world model" da cui, in linea di principio, si può addestrare un agente a imitare comportamenti visti in video senza mai conoscere i comandi originali. Genie 2 (2024) e Genie 3 (2025) estendono l'idea a mondi 3D fotorealistici in tempo reale con memoria a lungo termine.
+
+## Come e fatto
+Tre blocchi, tutti basati su uno **ST-transformer** (attenzione fattorizzata spaziale + temporale, per reggere sequenze video lunghe senza costo quadratico pieno):
+1. **Video tokenizer (VQ-VAE)** — comprime ogni frame in token discreti; lavora spazio-temporalmente così i token portano già informazione di movimento.
+2. **Latent Action Model (LAM)** — il cuore. È un modello *inverse-dynamics* addestrato in modo non supervisionato: guarda frame *t* e *t+1* e deve inferire "cosa è successo in mezzo", passando l'informazione attraverso un **collo di bottiglia VQ molto stretto (8 codici)**. Poiché il bottleneck è minuscolo, il modello è costretto a comprimere il cambiamento in un alfabeto minimo e discreto — ed è lì che *emergono* le azioni: avanti, salta, ecc., senza che nessuno le abbia mai etichettate. Il LAM serve solo in training; a inference l'azione la scegli tu.
+3. **Dynamics model** — autoregressivo (MaskGIT-style): dati i token dei frame passati + l'azione latente, predice i token del frame successivo, decodificati poi in pixel dal tokenizer.
+
+Chiave concettuale: il bottleneck informativo *è* il meccanismo di scoperta. Struttura non imposta l'ontologia delle azioni; la strozza finché non emerge da sola.
+
+## Cosa possiamo notare di utile per noi
+Questo è il paper che meglio incarna la tua tesi "**il mondo interno come sogno controllabile emerge dal basso**" — ma con una lezione metodologica precisa che riguarda direttamente la tua arena.
+- **Emergenza per strozzatura, non per progettazione.** Nella tua arena del vuoto, tu non vuoi *dire* al sistema cosa sono i "vuoti" o le "azioni": vuoi che emergano. Genie mostra il trucco ingegneristico esatto per farlo — metti un **collo di bottiglia discreto strettissimo** tra "prima" e "dopo", e l'alfabeto minimo che il sistema è costretto a inventare *è* la sua ontologia emersa delle azioni/eventi. È l'analogo, sul lato dinamica, del tuo S1→battito: comprimi il cambiamento fino a farne emergere un vocabolario.
+- **Azioni latenti = il tuo "battito" reso vocabolario.** In S1 estrai una frequenza scalare (il battito degli scambi). Genie estrae invece un *set discreto di modi di cambiamento*. Trasferibile: potresti far emergere dalla tua arena non un solo scalare ma un piccolo dizionario VQ di "tipi di evento" (collisione, formazione-vuoto, collasso-vuoto) osservando coppie di frame consecutivi del campo — un oscilloscopio non su una metrica ma sul *vocabolario di transizioni* che l'arena genera.
+- **World-model-come-sogno alla lettera.** A inference Genie non tocca nessun ambiente: genera il futuro dal proprio latente in risposta a un input. È la definizione operativa del sogno interno, e la ricorsione percezione→predizione→azione→percezione è esplicita nel loop autoregressivo.
+- **Dove diverge (onesto):** Genie è supervisione-per-ricostruzione mascherata su scala enorme (11B, 200k ore), l'opposto della tua sim single-file a energia zero. Le azioni "emergono" ma dentro un'architettura pesantissima e su un dominio (platformer) già molto strutturato. Non c'è vuoto, non c'è auto-organizzazione di particelle: c'è compressione di video. Prendine il *meccanismo* (bottleneck→emergenza), non la scala.
+
+## Da rubare
+1. **Il bottleneck VQ a pochissimi codici tra frame *t* e *t+1* come generatore di ontologia emersa.** Applicalo alla tua arena: fai inferire a un piccolo modulo "cosa è cambiato nel campo dei vuoti da un tick all'altro" attraverso 4-8 codici discreti, e leggi quali codici emergono — è un oscilloscopio sul vocabolario spontaneo di eventi, non su una singola metrica.
+2. **La separazione LAM (solo-training) vs controllo (solo-inference):** impara le azioni non supervisionate offline, poi *sostituisci* l'azione emersa con una tua scelta a runtime. Pattern utile per rendere la tua arena "pilotabile" dopo che si è auto-organizzata, senza aver mai etichettato nulla.
+3. **ST-transformer / attenzione fattorizzata spazio-tempo:** se mai vorrai un osservatore che guarda la storia della tua griglia di vuoti senza esplodere in costo, fattorizzare spaziale × temporale è la ricetta collaudata per sequenze lunghe di campi 2D.

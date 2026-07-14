@@ -1,0 +1,17 @@
+# GhostSolve — [drakeleier/GhostSolve](https://github.com/drakeleier/GhostSolve)
+
+⭐ 5 · TypeScript (Electron) · ultimo push 2025-07-22 · nessuna licenza dichiarata
+
+## Cosa fa
+GhostSolve è un assistente per colloqui tecnici multi-LLM, dichiaratamente "100% undetectable": gira invisibile in background e nessun software di screen-recording o monitoraggio ne rileva la presenza. Si presenta come alternativa open-source a Interview Coder. Le funzioni concrete: cattura uno screenshot di un problema di coding (`Ctrl+H`), genera la soluzione (`Ctrl+Enter`) con suggerimenti contestuali in vari linguaggi di programmazione, e permette di spostare, mostrare/nascondere e resettare l'overlay via scorciatoie da tastiera. Configurazione minima: chiave OpenAI e linguaggio preferito, impostabili sia da `.env` sia da una pagina Settings in-app (`Ctrl+P`). È un progetto piccolo e acerbo (5 stelle, poche viste), essenzialmente un clone didattico del pattern Interview Coder.
+
+## Come è fatto
+App Electron classica con separazione main/preload/renderer: `src/main.ts` gestisce la finestra stealth e le scorciatoie globali, `src/preload.ts` fa da bridge sicuro, e il renderer React (`App.tsx`, `ConfigScreen.tsx`) mostra l'overlay e la config. Il servizio AI è isolato in `src/services/openai.ts` (single-provider nonostante il claim "Multi LLM"). Build via webpack, con `dist/` committato nel repo. Il claim di invisibilità si regge, come negli altri overlay del filone, sulle API di content-protection di Electron/Windows, ma il codice esposto nel README non documenta i dettagli (a differenza di stealth-overlay che li elenca uno per uno). L'interazione è interamente da tastiera con hotkey globali (screenshot, solution, reset, show/hide, move), così non serve mai dare focus alla finestra.
+
+## Cosa possiamo notare di utile per noi
+Il valore per noi è quasi interamente come **punto di confronto minimale nel filone stealth-overlay**: è la versione più scarna (single-provider, poca documentazione) e mostra qual è il nucleo irriducibile del pattern — finestra content-protected + hotkey globali + un servizio LLM isolato. Questo aiuta a capire cos'è *essenziale* vs cos'è *ornamentale* nell'occultamento di un agente sempre-presente: qui manca tutto tranne il minimo, eppure il claim di invisibilità resta lo stesso. Per il nostro lavoro su occultamento/steganografia la lezione è di parsimonia: la superficie osservabile da nascondere è piccola e ben definita (framebuffer, taskbar, focus), e coprirla non richiede complessità. Dove diverge da tutto ciò che ci interessa: zero stato interno, zero memoria, zero world-model — è il grado zero, uno screenshot-in/soluzione-out. Nota di igiene: committare `dist/` compilato è un anti-pattern, ma segnala anche che il progetto è pensato per essere clonato-e-runnato senza build, utile se cercassimo il minimo attrito di distribuzione per un tool.
+
+## Da rubare
+1. **Il nucleo irriducibile dell'overlay stealth** (main/preload/renderer + hotkey globali + servizio LLM isolato): usarlo come scheletro di riferimento minimo se serve un pannello di osservazione sempre-in-primo-piano.
+2. **Config duale `.env` + Settings in-app** (`Ctrl+P`): pattern comodo per tool che devono girare sia da dev sia da utente finale senza toccare file.
+3. **Distribuzione con `dist/` precompilato**: per un prototipo condivisibile a chi non ha toolchain, azzerare l'attrito di build (con le dovute cautele di sicurezza).
