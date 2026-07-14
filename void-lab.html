@@ -1,0 +1,966 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Void Lab v1 — banco A/B sulle politiche di memoria</title>
+<style>
+  /* ---- tema fosforo verde, coerente con arena-vuoto.html / modello-vuoto.html ---- */
+  :root{ --bg:#0a0e12; --panel:#111820; --dim:#5b6b78; --accent:#5ee0c0; --org:#ffb14e;
+         --blue:#7fd4ff; --line:#1c2833; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:#dfe8ee;
+        font:12px/1.5 Consolas, Menlo, "Cascadia Mono", monospace; }
+  h1{ font-size:15px; margin:14px 16px 4px; color:var(--accent); font-weight:600; }
+  .sub{ margin:0 16px 12px; color:var(--dim); font-size:11px; max-width:980px; }
+  .wrap{ display:flex; gap:14px; padding:0 16px 24px; align-items:flex-start; flex-wrap:wrap; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px; }
+  .lab{ color:var(--dim); font-size:10px; margin-bottom:6px; text-transform:uppercase; letter-spacing:.4px; }
+  canvas{ display:block; border-radius:8px; background:#000; }
+  canvas#arena{ width:648px; height:396px; image-rendering:auto; }
+  .ctrl{ width:300px; }
+  .row{ display:flex; align-items:center; justify-content:space-between; margin:6px 0; gap:8px; }
+  .row span{ color:#aebcc6; }
+  input[type=number], select, textarea{
+    background:#0b1116; color:#cfe8e0; border:1px solid var(--line); border-radius:6px;
+    padding:4px 6px; font:12px Consolas,Menlo,monospace; }
+  input[type=number]{ width:88px; text-align:right; }
+  select{ min-width:110px; }
+  textarea{ width:100%; height:96px; resize:vertical; font-size:10px; }
+  button{ background:#17222c; color:#dfe8ee; border:1px solid #26333f; border-radius:7px;
+          padding:6px 9px; cursor:pointer; font:12px Consolas,Menlo,monospace; }
+  button:hover{ border-color:var(--accent); }
+  button.primary{ background:var(--accent); color:#04120e; border-color:var(--accent); font-weight:700; }
+  .btns{ display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+  .btns button{ flex:1 1 30%; }
+  table{ border-collapse:collapse; width:100%; font-size:12px; margin:4px 0 10px; }
+  th,td{ text-align:right; padding:4px 8px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; }
+  th{ color:var(--dim); font-weight:500; text-transform:uppercase; font-size:10px; letter-spacing:.3px; }
+  td.k{ text-align:left; color:#aebcc6; }
+  .colA{ color:var(--accent); } .colB{ color:var(--org); }
+  .note{ color:var(--dim); font-size:10px; margin-top:8px; line-height:1.5; }
+  #readout{ color:var(--dim); font-size:11px; margin-top:6px; min-height:30px; white-space:pre; }
+  #verdict{ margin:4px 0 8px; font-size:12px; color:#dfe8ee; min-height:16px; }
+  #testOut{ margin:6px 0; font-size:12px; min-height:16px; }
+  #status{ color:var(--blue); font-size:11px; min-height:14px; margin-top:4px; }
+  .pass{ color:var(--accent); font-weight:700; } .fail{ color:#ff7a9c; font-weight:700; }
+  #plotSummary{ color:var(--dim); font-size:11px; margin-top:6px; min-height:14px; }
+  code{ color:var(--blue); }
+</style>
+
+<h1>Void Lab v1 — due politiche di memoria, stesso agente, stesso mondo</h1>
+<p class="sub">
+  <b>Ipotesi:</b> una memoria relazionale <b class="colA">A = novelty-gated</b> (scrive solo novità strutturata, cap 200)
+  dà più potere gestionale con meno storage di una <b class="colB">B = store-all</b> (scrive ogni percetto).
+  A e B differiscono in <b>una cosa sola</b>: cosa entra in memoria. La sorpresa è calcolata con la stessa
+  identica funzione. Verdetto numerico appaiato, deterministico (mulberry32), falsificabile.
+</p>
+
+<div class="wrap">
+  <!-- ============ (1) ARENA VIVA ============ -->
+  <div class="card">
+    <div class="lab">Arena · campo con vuoti · <span class="colA">A teal</span> / <span class="colB">B arancio</span> · scia + goal ⊕</div>
+    <canvas id="arena" width="648" height="396"></canvas>
+    <div id="readout">pronto.</div>
+  </div>
+
+  <!-- ============ (2) CONFIG ============ -->
+  <div class="ctrl card">
+    <div class="lab">Config esperimento</div>
+    <div class="row"><span>seed</span><input id="inSeed" type="number" value="1337" step="1"></div>
+    <div class="row"><span>innateSeed</span><input id="inInnate" type="number" value="1337" step="1"></div>
+    <div class="row"><span>rumore percettivo</span><input id="inNoise" type="number" value="0.03" step="0.005" min="0" max="0.5"></div>
+    <div class="row"><span>maxSteps</span><input id="inSteps" type="number" value="4000" step="100" min="10"></div>
+    <div class="row"><span>blobs (vuoti)</span><input id="inBlobs" type="number" value="7" step="1" min="1" max="30"></div>
+    <div class="row"><span>mondo dinamico</span><input id="inDyn" type="checkbox"></div>
+    <div class="row"><span>memoria</span>
+      <select id="inMem"><option value="Pair" selected>Pair (A vs B)</option><option value="A">A — novelty-gated</option><option value="B">B — store-all</option></select></div>
+
+    <div class="lab" style="margin-top:10px">Sweep</div>
+    <div class="row"><span>parametro</span>
+      <select id="swParam">
+        <option value="noise" selected>noise (rumore)</option>
+        <option value="goalPull">goalPull (tiro al goal · abbassa per far contare la memoria)</option>
+        <option value="blobs">blobs (mondo)</option>
+        <option value="seed">seed</option>
+        <option value="maxSteps">maxSteps</option>
+      </select></div>
+    <div class="row"><span>da</span><input id="swFrom" type="number" value="0" step="0.01"></div>
+    <div class="row"><span>a</span><input id="swTo" type="number" value="0.12" step="0.01"></div>
+    <div class="row"><span>punti</span><input id="swSteps" type="number" value="10" step="1" min="2" max="60"></div>
+
+    <div class="btns">
+      <button id="bRun" class="primary">Run</button>
+      <button id="bSweep">Sweep</button>
+      <button id="bTest">Test canonico</button>
+      <button id="bSave">Save</button>
+      <button id="bLoad">Load</button>
+      <button id="bCsv">Export CSV</button>
+      <button id="bPng">Export PNG</button>
+    </div>
+    <div id="status"></div>
+
+    <div class="lab" style="margin-top:8px">Esperimento JSON (save/load)</div>
+    <textarea id="cfgText" spellcheck="false"></textarea>
+    <input id="cfgFile" type="file" accept=".json,application/json" style="font-size:10px; width:100%; margin-top:4px">
+    <div class="note">
+      Headless: <code>window.__runExperiment(cfg)</code> · <code>window.__pair(cfg)</code> · <code>window.__sweep(cfg)</code>.
+      Stesso cfg → stessi numeri. Nessun Math.random nel core.
+    </div>
+  </div>
+
+  <!-- ============ (3) RISULTATI ============ -->
+  <div class="card" style="min-width:560px; flex:1">
+    <div class="lab">Verdetto appaiato (stesso seed, stesso mondo, stessa forma innata)</div>
+    <table>
+      <thead><tr><th class="k">metrica</th><th class="colA">A novelty-gated</th><th class="colB">B store-all</th><th>Δ (B−A)</th></tr></thead>
+      <tbody id="tbody">
+        <tr><td class="k">passi al goal</td><td id="tAs">—</td><td id="tBs">—</td><td id="tDs">—</td></tr>
+        <tr><td class="k">|memoria|</td><td id="tAm">—</td><td id="tBm">—</td><td id="tDm">—</td></tr>
+        <tr><td class="k">raggiunto</td><td id="tAr">—</td><td id="tBr">—</td><td id="tDr"></td></tr>
+        <tr><td class="k">distanza finale</td><td id="tAd">—</td><td id="tBd">—</td><td id="tDd"></td></tr>
+      </tbody>
+    </table>
+    <div id="verdict"></div>
+    <div id="testOut"></div>
+    <div class="lab" style="margin-top:8px">Plot sweep · <span class="colA">A</span> vs <span class="colB">B</span></div>
+    <div class="row" style="justify-content:flex-start"><span>metrica</span>
+      <select id="metricSel"><option value="steps" selected>steps (passi al goal)</option><option value="memSize">memSize (|memoria|)</option></select></div>
+    <canvas id="plot" width="540" height="320"></canvas>
+    <div id="plotSummary"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+(function(){
+/* =====================================================================
+   VOID LAB v1
+   CORE portato FEDELMENTE da arena-vuoto.html (stessa matematica, stesse
+   costanti). L'unico cambiamento strutturale: la memoria dell'agente è
+   estratta dietro l'interfaccia makeMemory(kind) — l'agente parla SOLO
+   con agent.mem.write(...) e agent.mem.surprise(...).
+   Determinismo assoluto: mulberry32 seedato; nel core niente Math.random
+   né Date.now. Il rumore percettivo è ri-seedato per (seed, step): è una
+   funzione pura, identica per A e B allo stesso passo.
+   ===================================================================== */
+
+/* ---------- RNG seedato (identico all'arena) ---------- */
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function rr(rng,a,b){ return a + (b-a)*rng(); }
+
+/* ---------- utilità numeriche (identiche all'arena) ---------- */
+function clamp(v,lo,hi){ return v<lo?lo:(v>hi?hi:v); }
+function safe(v,fb){ return Number.isFinite(v)?v:fb; }
+function saturate(v){ return v<0?0:(v>1?1:v); }
+function quantile(arr,q){
+  if(!arr || arr.length===0) return 0;
+  const s=Array.prototype.slice.call(arr).sort(function(a,b){return a-b;});
+  const idx=clamp(Math.round((s.length-1)*q),0,s.length-1);
+  return s[idx];
+}
+
+/* ---------- costanti del metabolismo (valori IDENTICI all'arena) ---------- */
+const M=16, L=12;                      // patch a girasole 16 punti -> percetto 12
+const SREF=1.4;                        // scala distanza -> sorpresa [0,1]
+const WRITE_S=0.13;                    // soglia sorpresa del gate di A
+const VAR_THR=0.0045;                  // soglia struttura (rumore piatto escluso)
+const MEMCAP_A=200;                    // cap memoria A (bounded, come arena)
+const MEMCAP_B=20000;                  // cap TECNICO di B: solo anti-OOM, non un gate
+const NDIR=8, PROBE=6.0, DEAD=0.06;
+const INERTIA=0.62, CTRL_K=3.4, ACC=0.36, VMAX=0.95;
+const CUR=0.50, GOALG=0.95, REACH=3.5;
+const S_MIN=0.15, S_MAX=0.70;
+const REFF_BASE=0.7, REFF_GAIN=0.6, REFF_REF=0.30;
+const FAM_RATE=0.01, VOID_SOFT=0.30;
+const CGW=30, CGH=18, CGN=CGW*CGH;     // griglia copertura
+const GOAL_EPS=8;                      // criterio del RUNNER: goal se dist < 8
+
+/* offset base a girasole (angolo aureo) — identico all'arena */
+const baseOff=[];
+for(let i=0;i<M;i++){
+  const ang=i*2.399963229728653;
+  const rad=Math.sqrt((i+0.5)/M);
+  baseOff.push([Math.cos(ang)*rad, Math.sin(ang)*rad]);
+}
+
+/* ---------- distanza / sorpresa (funzioni identiche all'arena) ---------- */
+function dist(p,q){ let s=0; for(let l=0;l<L;l++){ const d=p[l]-q[l]; s+=d*d; } return Math.sqrt(s); }
+function nearestDist(mem,p){
+  if(mem.length===0) return Infinity;
+  let best=Infinity;
+  for(let i=0;i<mem.length;i++){ const d=dist(mem[i].percept,p); if(d<best) best=d; }
+  return best;
+}
+function surpriseFrom(minDist){
+  if(!Number.isFinite(minDist)) return 1.0;   // memoria vuota => novità massima
+  return clamp(minDist/SREF,0,1);
+}
+function structGate(variance){ return saturate(variance/VAR_THR); }
+
+/* =====================================================================
+   MODULO MEMORIA — il cuore dell'esperimento.
+   makeMemory(kind) -> { write, surprise, size, reset }.
+   A e B differiscono SOLO nel gate di write(): che cosa entra in memoria.
+   surprise() è la STESSA IDENTICA formula per entrambe:
+       nearestDist(items, percept)/SREF * structGate(variance)
+   Cambia solo il CONTENUTO di items su cui gira nearestDist.
+   ===================================================================== */
+function makeMemory(kind){
+  if(kind!=='A' && kind!=='B') throw new Error('makeMemory: kind deve essere "A" o "B"');
+  const cap = kind==='A' ? MEMCAP_A : MEMCAP_B;
+  let items=[];
+  return {
+    kind: kind,
+    // A: novelty-gated (porting fedele dell'arena) — scrive SOLO se
+    //    sorpresa > 0.13 E varianza > 0.0045, cap 200.
+    // B: store-all — scrive OGNI percetto, nessun gate, cap tecnico 20000.
+    write: function(percept, surprise, variance, x, y){
+      if(kind==='A' && !(surprise>WRITE_S && variance>VAR_THR)) return false;
+      if(items.length>=cap) return false;
+      items.push({percept:percept, x:x, y:y, energy:surprise});
+      return true;
+    },
+    // IDENTICA per A e B — non toccare, non specializzare.
+    surprise: function(percept, variance){
+      return surpriseFrom(nearestDist(items,percept)) * structGate(variance);
+    },
+    size: function(){ return items.length; },
+    reset: function(){ items=[]; }
+  };
+}
+
+/* =====================================================================
+   CONFIG — normalizzazione con default documentati (dalla spec v1)
+   ===================================================================== */
+function defaultCfg(){
+  return {
+    seed: 1337,
+    world: { size:[180,110], blobs:7, dynamic:false },
+    agent: { innateSeed:1337, goal:true, memory:'A' },
+    run:   { maxSteps:4000, noise:0.03 },
+    sweep: { param:'noise', from:0, to:0.12, steps:10 }
+  };
+}
+function cloneCfg(c){ return JSON.parse(JSON.stringify(c)); }
+function normCfg(c){
+  const d=defaultCfg(); c=c||{};
+  const w=c.world||{}, a=c.agent||{}, r=c.run||{}, s=c.sweep||{};
+  return {
+    seed: Number.isFinite(+c.seed) ? (+c.seed|0) : d.seed,
+    world: {
+      size: (Array.isArray(w.size)&&w.size.length===2) ? [w.size[0]|0, w.size[1]|0] : d.world.size.slice(),
+      blobs: Number.isFinite(+w.blobs) ? Math.max(1,+w.blobs|0) : d.world.blobs,
+      dynamic: !!w.dynamic
+    },
+    agent: {
+      innateSeed: Number.isFinite(+a.innateSeed) ? (+a.innateSeed|0)
+                : (Number.isFinite(+c.seed) ? (+c.seed|0) : d.agent.innateSeed),
+      goal: (a.goal===undefined) ? true : a.goal,   // true oppure [x,y] espliciti
+      goalPull: Number.isFinite(+a.goalPull) ? Math.max(0,+a.goalPull) : GOALG, // forza del tiro al goal
+      memory: (a.memory==='B'||a.memory==='Pair') ? a.memory : 'A'
+    },
+    run: {
+      maxSteps: Number.isFinite(+r.maxSteps) ? Math.max(1,+r.maxSteps|0) : d.run.maxSteps,
+      noise: Number.isFinite(+r.noise) ? Math.max(0,+r.noise) : d.run.noise
+    },
+    sweep: {
+      param: (['noise','goalPull','blobs','seed','maxSteps'].indexOf(s.param)>=0) ? s.param : d.sweep.param,
+      from: Number.isFinite(+s.from) ? +s.from : d.sweep.from,
+      to:   Number.isFinite(+s.to)   ? +s.to   : d.sweep.to,
+      steps:Number.isFinite(+s.steps)? Math.max(2, Math.min(60, +s.steps|0)) : d.sweep.steps
+    }
+  };
+}
+
+/* =====================================================================
+   MONDO — campo scalare con blob gaussiani (formule identiche all'arena).
+   Il seme dei blob deriva dal seed dell'esperimento: stesso seed ->
+   stesso mondo, sempre. (seed+9021: 9021 era il seme fisso dell'arena.)
+   ===================================================================== */
+function makeWorld(cfg){
+  const W=cfg.world.size[0], H=cfg.world.size[1];
+  const world={ W:W, H:H, field:new Float32Array(W*H), blobs:[], dynamic:cfg.world.dynamic };
+  const brng=mulberry32((cfg.seed+9021)|0);
+  for(let i=0;i<cfg.world.blobs;i++){
+    world.blobs.push({
+      x: 0.1*W + brng()*0.8*W, y: 0.1*H + brng()*0.8*H,
+      r: 9 + brng()*15,
+      amp: 0.55 + brng()*0.5,
+      vx: (brng()-0.5)*0.05, vy:(brng()-0.5)*0.05
+    });
+  }
+  rasterizeField(world);
+  return world;
+}
+function rasterizeField(world){
+  const W=world.W, H=world.H, field=world.field, blobs=world.blobs;
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      let v=0;
+      for(let b=0;b<blobs.length;b++){
+        const bb=blobs[b];
+        const dx=x-bb.x, dy=y-bb.y;
+        v += bb.amp*Math.exp(-(dx*dx+dy*dy)/(2*bb.r*bb.r));
+      }
+      field[y*W+x]=clamp(v,0,1);
+    }
+  }
+}
+function driftField(world){
+  const W=world.W, H=world.H;
+  for(let i=0;i<world.blobs.length;i++){
+    const b=world.blobs[i];
+    b.x=clamp(b.x+b.vx,0,W); b.y=clamp(b.y+b.vy,0,H);
+    if(b.x<=0||b.x>=W) b.vx=-b.vx;
+    if(b.y<=0||b.y>=H) b.vy=-b.vy;
+  }
+  rasterizeField(world);
+}
+function sampleField(world,x,y){
+  const W=world.W, H=world.H, field=world.field;
+  x=clamp(x,0,W-1.001); y=clamp(y,0,H-1.001);
+  const x0=x|0, y0=y|0, fx=x-x0, fy=y-y0;
+  const i=y0*W+x0;
+  const a=field[i], b=field[i+1], c=field[i+W], d=field[i+W+1];
+  return a*(1-fx)*(1-fy)+b*fx*(1-fy)+c*(1-fx)*fy+d*fx*fy;
+}
+
+/* =====================================================================
+   FORMA INNATA + PERCEZIONE (identiche all'arena) + rumore percettivo.
+   Il rumore (cfg.run.noise) perturba i campioni grezzi del patch, con un
+   RNG ri-seedato per passo da (seed, step): stessa sequenza per A e B.
+   ===================================================================== */
+function makeInnate(rng){
+  const R=rr(rng,5,13);
+  const gain=rr(rng,0.6,1.6);
+  const Wlens=new Float32Array(L*M);
+  for(let k=0;k<L*M;k++) Wlens[k]=(rng()*2-1);
+  const wphase=rr(rng,0,Math.PI*2);
+  const wrate=rr(rng,0.010,0.030);
+  return {R:R,gain:gain,Wlens:Wlens,wphase:wphase,wrate:wrate};
+}
+const _perc=new Float32Array(L);       // buffer condiviso (single-thread, no GC)
+function perceive(sim,a,x,y){
+  const raw=a._raw;
+  let mean=0;
+  for(let m=0;m<M;m++){
+    const ox=baseOff[m][0]*a.R, oy=baseOff[m][1]*a.R;
+    let s=sampleField(sim.world, x+ox, y+oy);
+    // rumore percettivo deterministico (funzione di seed+step, non della traiettoria)
+    if(sim.nrng) s=clamp(s+(sim.nrng()*2-1)*sim.noise, 0, 1);
+    raw[m]=s; mean+=s;
+  }
+  mean/=M;
+  let varr=0;
+  for(let m=0;m<M;m++){ const d=raw[m]-mean; varr+=d*d; }
+  varr/=M;
+  let norm=0;
+  for(let l=0;l<L;l++){
+    let acc=0; const base=l*M;
+    for(let m=0;m<M;m++) acc+=a.Wlens[base+m]*(raw[m]-mean);
+    const v=Math.tanh(a.gain*acc);
+    _perc[l]=v; norm+=v*v;
+  }
+  norm=Math.sqrt(norm);
+  const out=new Float32Array(L);
+  if(norm>1e-6){ for(let l=0;l<L;l++) out[l]=_perc[l]/norm; }
+  return {percept:out, variance:varr};
+}
+
+/* =====================================================================
+   SIM — fabbrica di simulazioni ISOLATE: ogni run ha mondo+agente+rng
+   propri, così runExperiment è puro e riproducibile.
+   ===================================================================== */
+function makeSim(cfg){
+  cfg=normCfg(cfg);
+  const world=makeWorld(cfg);
+  const sim={ cfg:cfg, world:world, step:0, noise:cfg.run.noise, nrng:null, agents:[] };
+  const a=makeAgent(sim, cfg.agent.memory==='B'?'B':'A');
+  sim.agent=a; sim.agents=[a];
+  return sim;
+}
+function makeAgent(sim, memKind){
+  const cfg=sim.cfg, W=sim.world.W, H=sim.world.H;
+  // TUTTA la casualità dell'agente (forma innata + spawn + goal) viene da
+  // mulberry32(innateSeed): A e B in pair condividono lo STESSO innateSeed
+  // quindi stessa forma, stessa posizione, stesso goal.
+  const arng=mulberry32(cfg.agent.innateSeed|0);
+  const inn=makeInnate(arng);
+  const a={
+    id:0, R:inn.R, gain:inn.gain, Wlens:inn.Wlens,
+    wphase:inn.wphase, wrate:inn.wrate,
+    _raw:new Float32Array(M),
+    px:rr(arng,W*0.15,W*0.85), py:rr(arng,H*0.15,H*0.85),
+    vx:0, vy:0, heading:rr(arng,0,Math.PI*2),
+    mem: makeMemory(memKind),          // <-- UNICA differenza tra A e B
+    surprise:1.0, setpoint:0.20, sHist:[],
+    percept:null, variance:0,
+    hasGoal:true, goalX:0, goalY:0, reached:false, distToGoal:0,
+    visited:new Uint8Array(CGN), coverCount:0,
+    trail:[], fam:{},
+    goalPull: cfg.agent.goalPull      // forza del tiro al goal (parametro, non piu costante GOALG)
+  };
+  if(Array.isArray(cfg.agent.goal) && cfg.agent.goal.length===2){
+    a.goalX=clamp(+cfg.agent.goal[0],0,W); a.goalY=clamp(+cfg.agent.goal[1],0,H);
+  } else {
+    a.goalX=rr(arng,W*0.1,W*0.9); a.goalY=rr(arng,H*0.1,H*0.9);
+  }
+  a.distToGoal=Math.hypot(a.goalX-a.px, a.goalY-a.py);
+  return a;
+}
+
+/* =====================================================================
+   UN PASSO DI SIMULAZIONE — porting fedele di stepAgent dell'arena.
+   Unico cambiamento: memoria SOLO via a.mem.surprise / a.mem.write
+   (il gate di scrittura vive DENTRO il modulo memoria, non qui).
+   ===================================================================== */
+function stepAgent(sim,a){
+  const W=sim.world.W, H=sim.world.H;
+  // 1) PERCEZIONE del patch locale
+  const p=perceive(sim,a,a.px,a.py);
+  a.percept=p.percept; a.variance=p.variance;
+
+  // 2) SORPRESA = novità vs memoria, modulata dalla struttura (structGate)
+  a.surprise=safe(a.mem.surprise(p.percept,p.variance),0);
+
+  // 2b) storia della sorpresa su patch strutturati (àncora del setpoint)
+  if(a.variance>VAR_THR){
+    a.sHist.push(a.surprise);
+    if(a.sHist.length>120) a.sHist.shift();
+  }
+
+  // 3) SCRITTURA: A filtra dentro write() (novelty-gate), B scrive tutto.
+  a.mem.write(a.percept, a.surprise, a.variance, a.px, a.py);
+
+  // 4) SETPOINT S* ancorato al quantile mobile del raggiungibile (come arena)
+  const target=(a.sHist.length>=8) ? clamp(quantile(a.sHist,0.65),S_MIN,S_MAX) : S_MIN;
+  a.setpoint=clamp(a.setpoint+(target-a.setpoint)*0.02, S_MIN, S_MAX);
+
+  // 5) VUOTO REGOLATORE a 8 direzioni: sorpresa stimata + struttura
+  let dirx=0, diry=0;
+  const cand=new Array(NDIR);
+  let maxS=-1,minS=2,maxV=-1,iMaxS=0,iMinS=0,iMaxV=0;
+  for(let i=0;i<NDIR;i++){
+    const ang=i/NDIR*Math.PI*2;
+    const pp=perceive(sim,a, a.px+Math.cos(ang)*PROBE, a.py+Math.sin(ang)*PROBE);
+    const s=a.mem.surprise(pp.percept, pp.variance);
+    cand[i]={ang:ang, s:s, v:pp.variance};
+    if(s>maxS){ maxS=s; iMaxS=i; }
+    if(s<minS){ minS=s; iMinS=i; }
+    if(pp.variance>maxV){ maxV=pp.variance; iMaxV=i; }
+  }
+  const spread=maxS-minS;
+  if(a.surprise > a.setpoint + DEAD){
+    // travolto -> verso sorpresa minima; da neonato verso la struttura
+    const k = spread>0.02 ? iMinS : iMaxV;
+    dirx=Math.cos(cand[k].ang); diry=Math.sin(cand[k].ang);
+  } else {
+    // regolatore proporzionale + fallback balistico nel vuoto piatto
+    const sp0=Math.hypot(a.vx,a.vy);
+    let hx=sp0>1e-4?a.vx/sp0:Math.cos(a.wphase);
+    let hy=sp0>1e-4?a.vy/sp0:Math.sin(a.wphase);
+    const curl=0.11*Math.sin(sim.step*a.wrate+a.wphase);
+    const cs=Math.cos(curl), sn=Math.sin(curl);
+    const rx=hx*cs-hy*sn, ry=hx*sn+hy*cs;
+    const err=a.setpoint-a.surprise;
+    const grad=clamp(spread/0.08,0,1);          // fiducia nel gradiente
+    const bias=clamp(CTRL_K*err,0,1)*grad;
+    const nx=Math.cos(cand[iMaxS].ang), ny=Math.sin(cand[iMaxS].ang);
+    dirx=rx*(1-bias)+nx*bias;
+    diry=ry*(1-bias)+ny*bias;
+  }
+
+  // 6) curiosità + tiro verso il goal (pull identico all'arena)
+  let ax=dirx*CUR, ay=diry*CUR;
+  if(a.hasGoal){
+    const gx=a.goalX-a.px, gy=a.goalY-a.py;
+    const gd=Math.hypot(gx,gy);
+    a.distToGoal=gd;
+    if(gd<REACH) a.reached=true;
+    const w=a.reached ? clamp(gd/20,0,1)*a.goalPull : a.goalPull;
+    if(gd>1e-4){ ax+=(gx/gd)*w; ay+=(gy/gd)*w; }
+  }
+  const dl=Math.hypot(ax,ay)||1; ax/=dl; ay/=dl;
+
+  // 7) integrazione con inerzia + clamp velocità (mai divergenza)
+  a.vx=a.vx*INERTIA+ax*ACC;
+  a.vy=a.vy*INERTIA+ay*ACC;
+  let sp=Math.hypot(a.vx,a.vy);
+  if(sp>VMAX){ a.vx*=VMAX/sp; a.vy*=VMAX/sp; }
+  a.vx=safe(a.vx,0); a.vy=safe(a.vy,0);
+  a.px+=a.vx; a.py+=a.vy;
+  if(a.px<0){ a.px=0; a.vx=-a.vx; } else if(a.px>W){ a.px=W; a.vx=-a.vx; }
+  if(a.py<0){ a.py=0; a.vy=-a.vy; } else if(a.py>H){ a.py=H; a.vy=-a.vy; }
+  a.px=clamp(safe(a.px,W/2),0,W); a.py=clamp(safe(a.py,H/2),0,H);
+  a.heading=Math.atan2(a.vy||1e-6, a.vx||1e-6);
+
+  // 8) copertura
+  const cx=clamp(a.px/W*CGW|0,0,CGW-1), cy=clamp(a.py/H*CGH|0,0,CGH-1);
+  const ci=cy*CGW+cx;
+  if(!a.visited[ci]){ a.visited[ci]=1; a.coverCount++; }
+
+  // 9) scia (solo estetica, bounded)
+  a.trail.push(a.px,a.py);
+  if(a.trail.length>720) a.trail.splice(0,a.trail.length-720);
+}
+
+/* raggio d'azione effettivo + vuoto sociale (porting fedele; con un solo
+   agente per sim la coppia i<j non scatta mai, ma il comportamento resta
+   identico all'arena se in futuro si aggiungono agenti) */
+function reff(a){ return a.R*(REFF_BASE+REFF_GAIN*clamp(a.surprise/REFF_REF,0,1)); }
+function applyMutualVoid(sim){
+  const agents=sim.agents, W=sim.world.W, H=sim.world.H;
+  for(let i=0;i<agents.length;i++) for(let j=i+1;j<agents.length;j++){
+    const a=agents[i], b=agents[j];
+    let dx=b.px-a.px, dy=b.py-a.py;
+    let d=Math.hypot(dx,dy); if(d<1e-4){ d=1e-4; dx=1e-4; }
+    const ra=reff(a), rb=reff(b);
+    const range=ra+rb;
+    if(d<range){
+      const ux=dx/d, uy=dy/d, overlap=range-d;
+      const fa=a.fam[b.id]||0, fb=b.fam[a.id]||0;
+      const sA=1-fa, sB=1-fb;                     // sorpresa sociale = 1 - familiarità
+      a.fam[b.id]=Math.min(1,fa+FAM_RATE);
+      b.fam[a.id]=Math.min(1,fb+FAM_RATE);
+      const pA=overlap*sA*VOID_SOFT, pB=overlap*sB*VOID_SOFT;
+      a.px=clamp(a.px-ux*pA,0,W-1); a.py=clamp(a.py-uy*pA,0,H-1);
+      b.px=clamp(b.px+ux*pB,0,W-1); b.py=clamp(b.py+uy*pB,0,H-1);
+      a.vx=safe(a.vx-ux*pA*0.5,0); a.vy=safe(a.vy-uy*pA*0.5,0);
+      b.vx=safe(b.vx+ux*pB*0.5,0); b.vy=safe(b.vy+uy*pB*0.5,0);
+    }
+  }
+}
+
+function simStep(sim){
+  // rumore ri-seedato per passo: dipende SOLO da (seed, step) -> A e B
+  // ricevono la stessa sequenza di perturbazioni allo stesso passo.
+  sim.nrng = sim.noise>0 ? mulberry32((sim.cfg.seed ^ Math.imul(sim.step+1, 0x9E3779B1))|0) : null;
+  if(sim.world.dynamic && (sim.step%4===0)) driftField(sim.world);
+  for(let i=0;i<sim.agents.length;i++) stepAgent(sim, sim.agents[i]);
+  applyMutualVoid(sim);
+  sim.step++;
+}
+
+/* =====================================================================
+   RUNNER + METRICHE (headless-friendly, JSON-serializzabili)
+   ===================================================================== */
+function round3(v){ return Math.round(v*1000)/1000; }
+
+// runExperiment: UN goal-agent, gira fino a goal (dist<GOAL_EPS) o maxSteps.
+// Deterministico: stesso cfg -> stesso risultato, sempre.
+function runExperiment(cfg){
+  const c=normCfg(cfg);
+  const sim=makeSim(c);
+  const a=sim.agent;
+  let reached=false;
+  for(let i=0;i<c.run.maxSteps;i++){
+    simStep(sim);
+    if(Math.hypot(a.goalX-a.px, a.goalY-a.py) < GOAL_EPS){ reached=true; break; }
+  }
+  return {
+    reached: reached,
+    steps: sim.step,
+    memSize: a.mem.size(),
+    finalDist: round3(Math.hypot(a.goalX-a.px, a.goalY-a.py))
+  };
+}
+
+// pair: STESSO seed, STESSO mondo, STESSA forma innata; cambia solo memory.
+function pair(cfg){
+  const base=normCfg(cfg);
+  const cA=cloneCfg(base); cA.agent.memory='A';
+  const cB=cloneCfg(base); cB.agent.memory='B';
+  const A=runExperiment(cA), B=runExperiment(cB);
+  return { A:A, B:B, delta:{ steps:B.steps-A.steps, memSize:B.memSize-A.memSize } };
+}
+
+// sweep: spazza cfg.sweep.param da from a to in steps punti; per ogni punto pair().
+function setParam(c,param,value){
+  if(param==='noise')         c.run.noise=Math.max(0,value);
+  else if(param==='goalPull') c.agent.goalPull=Math.max(0,value);
+  else if(param==='blobs')    c.world.blobs=Math.max(1,Math.round(value));
+  else if(param==='seed')     c.seed=Math.round(value);
+  else if(param==='maxSteps') c.run.maxSteps=Math.max(1,Math.round(value));
+}
+function sweepPoint(base, param, value){
+  const c=cloneCfg(base);
+  setParam(c,param,value);
+  const pr=pair(c);
+  return {
+    value: round3(value),
+    A:{ steps:pr.A.steps, memSize:pr.A.memSize, reached:pr.A.reached },
+    B:{ steps:pr.B.steps, memSize:pr.B.memSize, reached:pr.B.reached }
+  };
+}
+function sweep(cfg){
+  const base=normCfg(cfg);
+  const s=base.sweep;
+  const out=[];
+  for(let i=0;i<s.steps;i++){
+    const v = s.from + (s.to-s.from)*i/(s.steps-1);
+    out.push(sweepPoint(base, s.param, v));
+  }
+  return out;
+}
+
+/* ---- API headless su window (JSON-serializzabili, senza UI) ---- */
+window.__runExperiment = function(cfg){ return runExperiment(cfg); };
+window.__pair          = function(cfg){ return pair(cfg); };
+window.__sweep         = function(cfg){ return sweep(cfg); };
+
+/* =====================================================================
+   UI — arena viva, config, tabella verdetto, plot sweep, export
+   ===================================================================== */
+const $=function(id){ return document.getElementById(id); };
+const COL_A='#5ee0c0', COL_B='#ffb14e';
+
+const cv=$('arena'), ctx=cv.getContext('2d');
+const plotCv=$('plot'), pg=plotCv.getContext('2d');
+
+/* --- lettura/applicazione config dalla UI --- */
+function readCfg(){
+  return normCfg({
+    seed:+$('inSeed').value,
+    world:{ size:[180,110], blobs:+$('inBlobs').value, dynamic:$('inDyn').checked },
+    agent:{ innateSeed:+$('inInnate').value, goal:true, memory:$('inMem').value },
+    run:{ maxSteps:+$('inSteps').value, noise:+$('inNoise').value },
+    sweep:{ param:$('swParam').value, from:+$('swFrom').value, to:+$('swTo').value, steps:+$('swSteps').value }
+  });
+}
+function applyCfg(c){
+  c=normCfg(c);
+  $('inSeed').value=c.seed;
+  $('inInnate').value=c.agent.innateSeed;
+  $('inNoise').value=c.run.noise;
+  $('inSteps').value=c.run.maxSteps;
+  $('inBlobs').value=c.world.blobs;
+  $('inDyn').checked=c.world.dynamic;
+  $('inMem').value=(c.agent.memory==='A'||c.agent.memory==='B')?c.agent.memory:'Pair';
+  $('swParam').value=c.sweep.param;
+  $('swFrom').value=c.sweep.from;
+  $('swTo').value=c.sweep.to;
+  $('swSteps').value=c.sweep.steps;
+}
+function status(msg){ $('status').textContent=msg||''; }
+
+/* --- run osservata: 1 o 2 sim animate nella stessa arena --- */
+let live=null;           // {entries:[{sim,kind,color,done,res}], cfg, done}
+let previewSim=makeSim(readCfg());   // per mostrare il mondo da fermo
+const STEPS_PER_FRAME=8;
+
+function startRun(){
+  const cfg=readCfg();
+  const mode=$('inMem').value;
+  function entry(kind,color){
+    const c=cloneCfg(cfg); c.agent.memory=kind;
+    return { sim:makeSim(c), kind:kind, color:color, done:false, res:null };
+  }
+  live={ cfg:cfg, done:false, entries: mode==='Pair'
+    ? [entry('A',COL_A), entry('B',COL_B)]
+    : [entry(mode, mode==='A'?COL_A:COL_B)] };
+  fillTable(null,null); $('verdict').textContent=''; $('testOut').textContent='';
+  status('Run in corso ('+(mode==='Pair'?'A vs B':mode)+')…');
+}
+function advanceLive(){
+  if(!live || live.done) return;
+  for(let e of live.entries){
+    if(e.done) continue;
+    for(let k=0;k<STEPS_PER_FRAME && !e.done;k++){
+      simStep(e.sim);
+      const a=e.sim.agent;
+      const d=Math.hypot(a.goalX-a.px, a.goalY-a.py);
+      // stesso identico criterio di runExperiment -> stessi numeri della headless
+      if(d<GOAL_EPS || e.sim.step>=live.cfg.run.maxSteps){
+        e.done=true;
+        e.res={ reached:d<GOAL_EPS, steps:e.sim.step, memSize:a.mem.size(), finalDist:round3(d) };
+      }
+    }
+  }
+  if(live.entries.every(function(e){return e.done;})){
+    live.done=true;
+    const eA=live.entries.filter(function(e){return e.kind==='A';})[0];
+    const eB=live.entries.filter(function(e){return e.kind==='B';})[0];
+    fillTable(eA?eA.res:null, eB?eB.res:null);
+    status('Run completata.');
+  }
+}
+
+/* --- rendering arena (stessa mappa colore teal dell'arena originale) --- */
+let fc=null, fctx=null, fimg=null, fcW=0, fcH=0;
+function ensureFieldCanvas(W,H){
+  if(fc && fcW===W && fcH===H) return;
+  fc=document.createElement('canvas'); fc.width=W; fc.height=H;
+  fctx=fc.getContext('2d'); fimg=fctx.createImageData(W,H); fcW=W; fcH=H;
+}
+function drawArena(){
+  const sims = (live && live.entries.length) ? live.entries : [{sim:previewSim,color:COL_A,kind:previewSim.agent.mem.kind}];
+  const world=sims[0].sim.world, W=world.W, H=world.H;
+  const CW=cv.width, CH=cv.height, SX=CW/W, SY=CH/H;
+  ctx.clearRect(0,0,CW,CH);
+  ensureFieldCanvas(W,H);
+  const d=fimg.data, field=world.field;
+  for(let i=0;i<W*H;i++){
+    const g=Math.pow(field[i],1.15);
+    d[i*4  ]=clamp(g*40 ,0,255);
+    d[i*4+1]=clamp(g*210,0,255);
+    d[i*4+2]=clamp(g*180,0,255);
+    d[i*4+3]=255;
+  }
+  fctx.putImageData(fimg,0,0);
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(fc,0,0,W,H,0,0,CW,CH);
+  for(let s=0;s<sims.length;s++){
+    const e=sims[s], a=e.sim.agent;
+    // scia
+    if(a.trail.length>=4){
+      ctx.beginPath();
+      ctx.moveTo(a.trail[0]*SX, a.trail[1]*SY);
+      for(let i=2;i<a.trail.length;i+=2) ctx.lineTo(a.trail[i]*SX, a.trail[i+1]*SY);
+      ctx.strokeStyle=e.color; ctx.globalAlpha=0.35; ctx.lineWidth=1.5; ctx.stroke();
+      ctx.globalAlpha=1;
+    }
+    // goal ⊕
+    const gx=a.goalX*SX, gy=a.goalY*SY;
+    ctx.strokeStyle=e.color; ctx.globalAlpha=0.7; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(gx,gy,7,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(gx-4,gy); ctx.lineTo(gx+4,gy);
+    ctx.moveTo(gx,gy-4); ctx.lineTo(gx,gy+4); ctx.stroke();
+    ctx.globalAlpha=1;
+    // pallina + alone di sorpresa
+    const x=a.px*SX, y=a.py*SY;
+    ctx.beginPath(); ctx.arc(x,y,3+a.surprise*4,0,Math.PI*2);
+    ctx.fillStyle=e.color; ctx.globalAlpha=0.18; ctx.fill(); ctx.globalAlpha=1;
+    ctx.beginPath(); ctx.arc(x,y,4,0,Math.PI*2);
+    ctx.fillStyle=e.color; ctx.fill();
+    ctx.strokeStyle='#04120e'; ctx.lineWidth=1; ctx.stroke();
+  }
+}
+function fmt(v,dd){ return (Math.round(v*Math.pow(10,dd))/Math.pow(10,dd)).toFixed(dd); }
+function updateReadout(){
+  if(!live){ $('readout').textContent='pronto. seed '+previewSim.cfg.seed+' · mondo '+previewSim.world.blobs.length+' blob'; return; }
+  let lines=[];
+  for(let i=0;i<live.entries.length;i++){
+    const e=live.entries[i], a=e.sim.agent;
+    const dNow=Math.hypot(a.goalX-a.px, a.goalY-a.py);   // distanza dalla posizione REALE
+    lines.push(e.kind+' | step '+e.sim.step+' | sorpresa '+fmt(a.surprise,3)+' | S* '+fmt(a.setpoint,3)
+      +' | mem '+a.mem.size()+' | dist '+fmt(dNow,1)+(e.done?(e.res.reached?'  [GOAL]':'  [maxSteps]'):''));
+  }
+  $('readout').textContent=lines.join('\n');
+}
+
+/* --- tabella verdetto --- */
+function cell(id,v){ $(id).textContent = (v===null||v===undefined) ? '—' : String(v); }
+function fillTable(rA,rB){
+  cell('tAs', rA?rA.steps:null);          cell('tBs', rB?rB.steps:null);
+  cell('tAm', rA?rA.memSize:null);        cell('tBm', rB?rB.memSize:null);
+  cell('tAr', rA?(rA.reached?'sì':'no'):null); cell('tBr', rB?(rB.reached?'sì':'no'):null);
+  cell('tAd', rA?rA.finalDist:null);      cell('tBd', rB?rB.finalDist:null);
+  if(rA&&rB){
+    cell('tDs', (rB.steps-rA.steps>=0?'+':'')+(rB.steps-rA.steps));
+    cell('tDm', (rB.memSize-rA.memSize>=0?'+':'')+(rB.memSize-rA.memSize));
+    let v;
+    if(rA.reached&&!rB.reached) v='A raggiunge il goal, B no → vince A.';
+    else if(!rA.reached&&rB.reached) v='B raggiunge il goal, A no → vince B.';
+    else if(!rA.reached&&!rB.reached) v='Nessuno raggiunge il goal entro maxSteps.';
+    else if(rA.steps===rB.steps) v='Pareggio sui passi ('+rA.steps+'); memoria: A '+rA.memSize+' vs B '+rB.memSize+'.';
+    else{
+      const w=rA.steps<rB.steps?'A':'B';
+      v='Vince '+w+' sui passi ('+rA.steps+' vs '+rB.steps+'); memoria: A '+rA.memSize+' vs B '+rB.memSize+'.';
+    }
+    $('verdict').textContent='Verdetto: '+v;
+  } else {
+    cell('tDs',null); cell('tDm',null);
+    if(rA||rB) $('verdict').textContent='Run singola ('+(rA?'A':'B')+'): usa Pair per il confronto.';
+  }
+}
+
+/* --- plot sweep --- */
+let sweepData=null;    // {param, points:[...]}
+function drawPlot(){
+  const W=plotCv.width, H=plotCv.height;
+  pg.fillStyle='#0a0e12'; pg.fillRect(0,0,W,H);   // sfondo pieno: il PNG esportato non è trasparente
+  if(!sweepData || !sweepData.points.length){
+    pg.fillStyle='#5b6b78'; pg.font='12px Consolas,monospace';
+    pg.fillText('Nessuno sweep. Premi "Sweep" per generare le curve.', 20, H/2);
+    $('plotSummary').textContent='';
+    return;
+  }
+  const metric=$('metricSel').value;               // 'steps' | 'memSize'
+  const pts=sweepData.points;
+  const xs=pts.map(function(p){return p.value;});
+  const ya=pts.map(function(p){return p.A[metric];});
+  const yb=pts.map(function(p){return p.B[metric];});
+  const xmin=Math.min.apply(null,xs), xmax=Math.max.apply(null,xs);
+  const ymax=Math.max(1, Math.max.apply(null,ya.concat(yb)))*1.08;
+  const ml=56, mr=12, mt=14, mb=36;
+  const pw=W-ml-mr, ph=H-mt-mb;
+  function X(v){ return ml + (xmax>xmin ? (v-xmin)/(xmax-xmin) : 0.5)*pw; }
+  function Y(v){ return mt + ph - (v/ymax)*ph; }
+  // griglia + tick
+  pg.strokeStyle='rgba(94,224,192,0.10)'; pg.lineWidth=1;
+  pg.fillStyle='#5b6b78'; pg.font='10px Consolas,monospace';
+  for(let i=0;i<=4;i++){
+    const yv=ymax*i/4, y=Y(yv);
+    pg.beginPath(); pg.moveTo(ml,y); pg.lineTo(W-mr,y); pg.stroke();
+    pg.textAlign='right'; pg.fillText(String(Math.round(yv)), ml-6, y+3);
+  }
+  for(let i=0;i<=4;i++){
+    const xv=xmin+(xmax-xmin)*i/4, x=X(xv);
+    pg.beginPath(); pg.moveTo(x,mt); pg.lineTo(x,mt+ph); pg.stroke();
+    pg.textAlign='center'; pg.fillText(String(round3(xv)), x, mt+ph+14);
+  }
+  // assi
+  pg.strokeStyle='rgba(94,224,192,0.35)';
+  pg.beginPath(); pg.moveTo(ml,mt); pg.lineTo(ml,mt+ph); pg.lineTo(W-mr,mt+ph); pg.stroke();
+  pg.fillStyle='#aebcc6';
+  pg.textAlign='center'; pg.fillText(sweepData.param+' →', ml+pw/2, H-6);
+  pg.save(); pg.translate(12, mt+ph/2); pg.rotate(-Math.PI/2);
+  pg.fillText(metric+' →', 0, 0); pg.restore();
+  // curve A/B
+  function line(arr,col){
+    pg.strokeStyle=col; pg.lineWidth=1.8; pg.beginPath();
+    for(let i=0;i<pts.length;i++){ const x=X(xs[i]), y=Y(arr[i]); i?pg.lineTo(x,y):pg.moveTo(x,y); }
+    pg.stroke();
+    pg.fillStyle=col;
+    for(let i=0;i<pts.length;i++){ pg.beginPath(); pg.arc(X(xs[i]),Y(arr[i]),2.6,0,Math.PI*2); pg.fill(); }
+  }
+  line(ya,COL_A); line(yb,COL_B);
+  // legenda
+  pg.font='11px Consolas,monospace'; pg.textAlign='left';
+  pg.fillStyle=COL_A; pg.fillRect(W-mr-150,mt+6,14,3); pg.fillText('A novelty-gated', W-mr-130, mt+11);
+  pg.fillStyle=COL_B; pg.fillRect(W-mr-150,mt+22,14,3); pg.fillText('B store-all', W-mr-130, mt+27);
+  // sintesi: su quanti punti A batte B nella metrica corrente (minore = meglio)
+  let wins=0, ties=0;
+  for(let i=0;i<pts.length;i++){
+    if(pts[i].A[metric]<pts[i].B[metric]) wins++;
+    else if(pts[i].A[metric]===pts[i].B[metric]) ties++;
+  }
+  $('plotSummary').textContent='Sintesi ('+metric+', minore = meglio): A vince su '+wins+' su '+pts.length+' punti'
+    +(ties?(' ('+ties+' pareggi)'):'')+' · sweep di '+sweepData.param+'.';
+}
+
+/* --- sweep dalla UI: chunked con setTimeout per non congelare la pagina --- */
+let sweepBusy=false;
+function runSweepUI(){
+  if(sweepBusy) return;
+  const base=readCfg();
+  const s=base.sweep;
+  sweepBusy=true;
+  sweepData={ param:s.param, points:[] };
+  status('Sweep 0/'+s.steps+'…');
+  let i=0;
+  function next(){
+    if(i>=s.steps){ sweepBusy=false; status('Sweep completo ('+s.steps+' punti).'); drawPlot(); return; }
+    const v=s.from+(s.to-s.from)*i/(s.steps-1);
+    sweepData.points.push(sweepPoint(base, s.param, v));   // stessa funzione dell'headless __sweep
+    i++;
+    status('Sweep '+i+'/'+s.steps+'…');
+    drawPlot();
+    setTimeout(next,0);
+  }
+  setTimeout(next,0);
+}
+
+/* --- export --- */
+function download(name, text, mime){
+  const url=URL.createObjectURL(new Blob([text],{type:mime}));
+  const el=document.createElement('a');
+  el.href=url; el.download=name;
+  document.body.appendChild(el); el.click(); el.remove();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+}
+function exportCsv(){
+  if(!sweepData || !sweepData.points.length){ status('Niente da esportare: fai prima uno Sweep.'); return; }
+  let csv='value,A_steps,A_mem,B_steps,B_mem\n';
+  for(let i=0;i<sweepData.points.length;i++){
+    const p=sweepData.points[i];
+    csv+=[p.value,p.A.steps,p.A.memSize,p.B.steps,p.B.memSize].join(',')+'\n';
+  }
+  download('void-lab-sweep.csv', csv, 'text/csv');
+  status('CSV esportato.');
+}
+function exportPng(){
+  const el=document.createElement('a');
+  el.href=plotCv.toDataURL('image/png');
+  el.download='void-lab-plot.png';
+  document.body.appendChild(el); el.click(); el.remove();
+  status('PNG del plot esportato.');
+}
+
+/* --- save/load (textarea + download + file input): il cfg determina la run --- */
+function saveExperiment(){
+  const c=readCfg();
+  const json=JSON.stringify(c,null,2);
+  $('cfgText').value=json;
+  download('void-lab-experiment.json', json, 'application/json');
+  status('Esperimento salvato (textarea + download).');
+}
+function loadExperiment(){
+  const txt=$('cfgText').value.trim();
+  if(!txt){ status('Textarea vuota: incolla un JSON o carica un file.'); return; }
+  try{
+    applyCfg(JSON.parse(txt));
+    previewSim=makeSim(readCfg()); live=null;
+    status('Esperimento caricato: premi Run per riprodurlo (deterministico).');
+  }catch(err){ status('JSON non valido: '+err.message); }
+}
+$('cfgFile').addEventListener('change', function(ev){
+  const f=ev.target.files && ev.target.files[0];
+  if(!f) return;
+  const rd=new FileReader();
+  rd.onload=function(){ $('cfgText').value=String(rd.result); loadExperiment(); };
+  rd.readAsText(f);
+});
+
+/* --- TEST CANONICO: pair su seed 1337 (default), eseguito due volte.
+       PASS se (a) i due giri danno byte-per-byte lo stesso JSON (determinismo),
+       (b) i numeri sono finiti, (c) la memoria di A rispetta il cap 200. --- */
+function canonicalTest(){
+  status('Test canonico in corso…');
+  const cfg=defaultCfg();                 // seed 1337, default della spec
+  const r1=pair(cfg);
+  const r2=pair(cfg);
+  const j1=JSON.stringify(r1), j2=JSON.stringify(r2);
+  const det=(j1===j2);
+  const sane=[r1.A,r1.B].every(function(r){
+    return Number.isFinite(r.steps)&&Number.isFinite(r.memSize)&&Number.isFinite(r.finalDist);
+  });
+  const capOk=r1.A.memSize<=MEMCAP_A;
+  const pass=det&&sane&&capOk;
+  fillTable(r1.A,r1.B);
+  const out=$('testOut');
+  out.innerHTML='Test canonico (pair, seed 1337): <span class="'+(pass?'pass':'fail')+'">'+(pass?'PASS':'FAIL')+'</span>'
+    +' — determinismo '+(det?'ok':'KO')+' · numeri finiti '+(sane?'ok':'KO')
+    +' · cap A '+r1.A.memSize+'/'+MEMCAP_A+(capOk?' ok':' KO')
+    +' · A '+r1.A.steps+' passi / B '+r1.B.steps+' passi.';
+  status('Test canonico eseguito.');
+  return pass;
+}
+
+/* --- wiring bottoni --- */
+$('bRun').onclick=startRun;
+$('bSweep').onclick=runSweepUI;
+$('bTest').onclick=canonicalTest;
+$('bSave').onclick=saveExperiment;
+$('bLoad').onclick=loadExperiment;
+$('bCsv').onclick=exportCsv;
+$('bPng').onclick=exportPng;
+$('metricSel').onchange=drawPlot;
+// cambio config -> aggiorna l'anteprima del mondo (senza far partire nulla)
+['inSeed','inBlobs','inDyn','inInnate'].forEach(function(id){
+  $(id).addEventListener('change', function(){ if(!live||live.done){ previewSim=makeSim(readCfg()); live=null; } });
+});
+
+/* --- loop di rendering --- */
+function frame(){
+  advanceLive();
+  drawArena();
+  updateReadout();
+  requestAnimationFrame(frame);
+}
+
+/* avvio */
+$('cfgText').value=JSON.stringify(defaultCfg(),null,2);
+fillTable(null,null);
+drawPlot();
+requestAnimationFrame(frame);
+})();
+</script>
