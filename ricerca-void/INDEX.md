@@ -4,6 +4,8 @@ Questa cartella raccoglie la mappa ragionata di **tutti i progetti** (repo, pape
 
 **225 progetti in indice** · **125 già analizzati a fondo** (link `progetti/<slug>.md`) · **189 repo/tool clonabili** via `clone-all.sh`.
 
+> 🧭 **Esploratore navigabile:** apri **[`esploratore.html`](esploratore.html)** (doppio click, offline, zero dipendenze) — tutti i 225 progetti + le 125 schede incastonati nella pagina, raggruppati in 12 cluster, con ricerca, filtri per rilevanza e apertura in-linea di ogni analisi. Rigenerabile con `python build-esploratore.py`. Sintesi narrativa in **[`REPORT.md`](REPORT.md)**.
+
 ## Legenda rilevanza
 
 Quanto un progetto è vicino al *cuore* dei tuoi temi (non quanto è "buono" in assoluto):
