@@ -72,6 +72,28 @@
   #archModal pre{ white-space:pre-wrap; word-break:break-word; color:#cfe8e0; font-size:11px;
                   background:#0b1116; border:1px solid var(--line); border-radius:6px; padding:8px; margin:4px 0; }
   #archModal .x{ float:right; }
+
+  /* ---- STRATO C · TAVOLO DI ANALISI (motore DuckDB, stesso tema fosforo) ---- */
+  .anly{ min-width:100%; flex:1 1 100%; }
+  .anly .head{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+  #anlyLoadInfo{ color:var(--accent); font-weight:700; }
+  #anlyStatus{ color:var(--blue); font-size:11px; min-height:14px; }
+  #anlyErr{ color:#ff7a9c; font-size:11px; min-height:14px; margin:4px 0; white-space:pre-wrap; word-break:break-word; }
+  .anly .presets{ display:flex; flex-wrap:wrap; gap:6px; margin:6px 0; }
+  .anly .presets button{ flex:1 1 22%; font-size:11px; }
+  #anlySql{ width:100%; height:150px; resize:vertical; font-size:11px; line-height:1.45;
+            color:#cfe8e0; background:#0b1116; }
+  .anly .exec{ display:flex; gap:8px; align-items:center; margin:6px 0; flex-wrap:wrap; }
+  #anlyMeta{ color:var(--dim); font-size:11px; }
+  #anlyResScroll{ overflow:auto; max-height:340px; border:1px solid var(--line); border-radius:8px; margin-top:6px; }
+  .anly table{ font-size:11px; margin:0; }
+  .anly th{ position:sticky; top:0; background:var(--panel); z-index:1; text-align:left; white-space:nowrap; }
+  .anly td{ text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .anly td.s{ text-align:left; color:#aebcc6; }
+  .anly .empty{ color:var(--dim); padding:10px 6px; text-align:center; }
+  #anlyChartWrap{ margin-top:10px; }
+  canvas#anlyChart{ width:100%; max-width:620px; height:300px; }
+  #anlyChartCap{ color:var(--dim); font-size:11px; margin-top:4px; min-height:14px; }
 </style>
 
 <h1>Void Lab v1 — due politiche di memoria, stesso agente, stesso mondo</h1>
@@ -186,6 +208,58 @@
       Ogni <b>Run in modalità Pair</b> salva due run (A e B); ogni <b>Sweep</b> salva ogni punto (A e B) con il valore spazzato.
       <b>RIFAI</b> ricarica il config nel banco e ri-esegue (deterministico, stessi numeri, run singola A/B → nessun doppione).
       <b>APRI</b> mostra config JSON + metriche + note. <b>ELIMINA</b> cancella dal database. La <b>nota</b> è modificabile e si salva nel database.
+    </div>
+  </div>
+</div>
+
+<!-- ============ (5) STRATO C · TAVOLO DI ANALISI (motore DuckDB / OLAP) ============ -->
+<div class="wrap">
+  <div class="card anly">
+    <div class="head">
+      <div class="lab" style="margin:0">Tavolo di analisi · query SQL analitiche su DuckDB (OLAP) · <span id="anlyLoadInfo">non caricato</span></div>
+      <div style="display:flex; gap:8px; align-items:center">
+        <span id="anlyStatus"></span>
+        <button id="bAnlyLoad" class="primary">Carica/aggiorna dati</button>
+      </div>
+    </div>
+
+    <div class="lab" style="margin-top:4px">Analisi pronte (riempiono il box SQL ed eseguono)</div>
+    <div class="presets">
+      <button id="bAnlyWin">A vs B: chi vince per goalPull</button>
+      <button id="bAnlySteps">Passi medi per tipo di memoria</button>
+      <button id="bAnlyMem">Memoria usata per tipo</button>
+      <button id="bAnlyNoise">Tasso di successo per rumore</button>
+    </div>
+
+    <div class="lab" style="margin-top:6px">Box SQL libero (tabelle: <code>runs_olap</code>, <code>metrics_olap</code>)</div>
+    <textarea id="anlySql" spellcheck="false"></textarea>
+    <div class="exec">
+      <button id="bAnlyRun" class="primary">Esegui</button>
+      <button id="bAnlyCsv">Export CSV</button>
+      <button id="bAnlyJson">Export JSON</button>
+      <span id="anlyMeta"></span>
+    </div>
+    <div id="anlyErr"></div>
+
+    <div id="anlyResScroll">
+      <table>
+        <thead id="anlyHead"></thead>
+        <tbody id="anlyBody"><tr><td class="empty">nessun risultato: premi «Carica/aggiorna dati», poi «Esegui» o un'analisi pronta.</td></tr></tbody>
+      </table>
+    </div>
+
+    <div id="anlyChartWrap">
+      <div class="lab" style="margin-top:8px">Grafico · <span class="colA">A teal</span> / <span class="colB">B arancio</span></div>
+      <canvas id="anlyChart" width="620" height="300"></canvas>
+      <div id="anlyChartCap"></div>
+    </div>
+
+    <div class="note">
+      Il motore è <b>DuckDB-WASM</b> (analitico, tipo-ClickHouse). <b>Carica/aggiorna dati</b> copia i run salvati da SQLite
+      dentro DuckDB (<code>runs_olap</code> / <code>metrics_olap</code>): ri-premi dopo nuovi Run/Sweep. Le metriche stanno in
+      <code>metrics_olap</code> come coppie <code>key/value</code> (steps, memSize, reached, finalDist); i parametri
+      (mem A/B, goalPull, noise, seed) si estraggono dai <b>tag</b> del run con <code>regexp_extract</code>. Errori SQL mostrati
+      in chiaro senza rompere la pagina.
     </div>
   </div>
 </div>
@@ -1330,4 +1404,436 @@ el('archModal').addEventListener('click', (ev) => { if(ev.target === el('archMod
     archStatus('Database non disponibile: solo simulazione.');
   }
 })();
+</script>
+
+<!-- =====================================================================
+     STRATO C · TAVOLO DI ANALISI — motore OLAP DuckDB (tipo-ClickHouse).
+     <script type="module"> SEPARATO e indipendente: non tocca il motore di
+     simulazione (script classico) né il modulo-ponte dello Strato B. Importa
+     lo STESSO ./lib/dati.js (i moduli ESM sono cache-ati: il singleton `Dati`
+     e il suo stato sono condivisi; Dati.init() è idempotente).
+       - Dati.loadIntoDuck()  copia runs+metrics dentro runs_olap / metrics_olap
+       - Dati.duck(sql)       esegue query analitiche e ritorna array di oggetti
+     Tutto offline. Ogni errore SQL è catturato e mostrato in chiaro: la pagina
+     non si rompe mai.
+
+     SCHEMA OLAP (creato da loadIntoDuck in lib/dati.js):
+       runs_olap(id BIGINT, experiment VARCHAR, kind VARCHAR, created_at VARCHAR,
+                 config_json VARCHAR, tags VARCHAR, notes VARCHAR)
+       metrics_olap(run_id BIGINT, key VARCHAR, value DOUBLE)
+         key ∈ {steps, memSize, reached, finalDist}  (formato LONG key/value)
+     I parametri (mem A/B, goalPull, noise, seed) vivono nei TAG del run come
+     testo "mem:A,seed:1337,goalPull:0.95,noise:0.03,grp:..." → li estraiamo con
+     regexp_extract (funzione CORE di DuckDB, nessuna extension richiesta).
+     ===================================================================== -->
+<script type="module">
+"use strict";
+
+/* Import DINAMICO di Dati (stesso singleton dello Strato B, cache-ato). */
+let DatiC = null;
+let initPromiseC = null;
+let duckLoaded = false;          // true dopo il primo loadIntoDuck riuscito
+let lastRows = null;             // ultimo risultato (per export CSV/JSON)
+let lastMeta = { sql:'', ms:0 }; // meta ultima query
+
+const COL_A = '#5ee0c0', COL_B = '#ffb14e';   // A teal / B arancio (coerenza tema)
+
+const elc = (id) => document.getElementById(id);
+function anlyStatus(msg){ const s = elc('anlyStatus'); if(s) s.textContent = msg || ''; }
+function anlyError(msg){ const e = elc('anlyErr'); if(e) e.textContent = msg || ''; }
+
+function ensureInitC(){
+  if(initPromiseC) return initPromiseC;
+  initPromiseC = (async () => {
+    const mod = await import('./lib/dati.js');   // stesso ESM dello Strato A/B
+    DatiC = mod.default || mod.Dati;
+    await DatiC.init();                          // idempotente (no doppio init)
+    return DatiC;
+  })();
+  return initPromiseC;
+}
+
+/* =====================================================================
+   QUERY DELLE ANALISI PRONTE.
+   Ogni query pivota metrics_olap (LONG) in colonne con MAX(CASE WHEN key=...)
+   e ricava mem/goalPull/noise dai tag con regexp_extract. TRY_CAST evita che
+   un tag malformato rompa l'intera query (ritorna NULL invece di errore).
+   ===================================================================== */
+const Q = {
+  // Esempio pre-compilato: ultimi 25 run con metriche pivotate + parametri dai tag.
+  esempio:
+`-- ESEMPIO · ultimi 25 run: metriche pivotate + parametri estratti dai tag
+SELECT r.id,
+       r.kind,
+       regexp_extract(r.tags, 'mem:([AB])', 1)                              AS mem,
+       TRY_CAST(regexp_extract(r.tags, 'goalPull:([0-9.eE+-]+)', 1) AS DOUBLE) AS goalPull,
+       TRY_CAST(regexp_extract(r.tags, 'noise:([0-9.eE+-]+)', 1)    AS DOUBLE) AS noise,
+       MAX(CASE WHEN m.key = 'steps'   THEN m.value END)                     AS steps,
+       MAX(CASE WHEN m.key = 'memSize' THEN m.value END)                     AS memSize,
+       MAX(CASE WHEN m.key = 'reached' THEN m.value END)                     AS reached
+FROM runs_olap r
+LEFT JOIN metrics_olap m ON m.run_id = r.id
+GROUP BY r.id, r.kind, r.tags
+ORDER BY r.id DESC
+LIMIT 25;`,
+
+  // A) A vs B: chi vince per goalPull — conteggio reached A/B + passi medi A/B.
+  win:
+`-- A vs B: chi vince per goalPull (conteggio goal raggiunti + passi medi)
+WITH mp AS (
+  SELECT run_id,
+         MAX(CASE WHEN key = 'steps'   THEN value END) AS steps,
+         MAX(CASE WHEN key = 'reached' THEN value END) AS reached
+  FROM metrics_olap GROUP BY run_id
+),
+r AS (
+  SELECT id,
+         regexp_extract(tags, 'mem:([AB])', 1)                                 AS mem,
+         TRY_CAST(regexp_extract(tags, 'goalPull:([0-9.eE+-]+)', 1) AS DOUBLE) AS goalPull
+  FROM runs_olap
+)
+SELECT r.goalPull,
+       CAST(SUM(CASE WHEN r.mem = 'A' AND mp.reached = 1 THEN 1 ELSE 0 END) AS BIGINT) AS A_reached,
+       CAST(SUM(CASE WHEN r.mem = 'B' AND mp.reached = 1 THEN 1 ELSE 0 END) AS BIGINT) AS B_reached,
+       CAST(SUM(CASE WHEN r.mem = 'A' THEN 1 ELSE 0 END)                    AS BIGINT) AS A_run,
+       CAST(SUM(CASE WHEN r.mem = 'B' THEN 1 ELSE 0 END)                    AS BIGINT) AS B_run,
+       ROUND(AVG(CASE WHEN r.mem = 'A' THEN mp.steps END), 1)          AS A_passi_medi,
+       ROUND(AVG(CASE WHEN r.mem = 'B' THEN mp.steps END), 1)          AS B_passi_medi
+FROM r JOIN mp ON mp.run_id = r.id
+WHERE r.goalPull IS NOT NULL
+GROUP BY r.goalPull
+ORDER BY r.goalPull;`,
+
+  // B) Passi medi/min/max per tipo di memoria.
+  steps:
+`-- Passi al goal per tipo di memoria (media / min / max)
+WITH mp AS (
+  SELECT run_id, MAX(CASE WHEN key = 'steps' THEN value END) AS steps
+  FROM metrics_olap GROUP BY run_id
+),
+r AS ( SELECT id, regexp_extract(tags, 'mem:([AB])', 1) AS mem FROM runs_olap )
+SELECT r.mem                       AS memoria,
+       COUNT(*)                    AS n_run,
+       ROUND(AVG(mp.steps), 1)     AS passi_medi,
+       MIN(mp.steps)               AS passi_min,
+       MAX(mp.steps)               AS passi_max
+FROM r JOIN mp ON mp.run_id = r.id
+WHERE r.mem IN ('A', 'B')
+GROUP BY r.mem
+ORDER BY r.mem;`,
+
+  // C) Memoria usata (memSize) media per tipo.
+  mem:
+`-- Memoria usata (|memoria|) media per tipo A vs B
+WITH mp AS (
+  SELECT run_id, MAX(CASE WHEN key = 'memSize' THEN value END) AS memSize
+  FROM metrics_olap GROUP BY run_id
+),
+r AS ( SELECT id, regexp_extract(tags, 'mem:([AB])', 1) AS mem FROM runs_olap )
+SELECT r.mem                         AS memoria,
+       COUNT(*)                      AS n_run,
+       ROUND(AVG(mp.memSize), 1)     AS memSize_media,
+       MIN(mp.memSize)               AS memSize_min,
+       MAX(mp.memSize)               AS memSize_max
+FROM r JOIN mp ON mp.run_id = r.id
+WHERE r.mem IN ('A', 'B')
+GROUP BY r.mem
+ORDER BY r.mem;`,
+
+  // D) Tasso di successo (% reached) per livello di rumore, per lato A/B.
+  noise:
+`-- Tasso di successo (% goal raggiunti) per livello di rumore
+WITH mp AS (
+  SELECT run_id, MAX(CASE WHEN key = 'reached' THEN value END) AS reached
+  FROM metrics_olap GROUP BY run_id
+),
+r AS (
+  SELECT id,
+         regexp_extract(tags, 'mem:([AB])', 1)                              AS mem,
+         TRY_CAST(regexp_extract(tags, 'noise:([0-9.eE+-]+)', 1) AS DOUBLE) AS noise
+  FROM runs_olap
+)
+SELECT r.noise,
+       ROUND(100.0 * AVG(CASE WHEN r.mem = 'A' THEN mp.reached END), 1) AS A_successo_pct,
+       ROUND(100.0 * AVG(CASE WHEN r.mem = 'B' THEN mp.reached END), 1) AS B_successo_pct,
+       ROUND(100.0 * AVG(mp.reached), 1)                                AS successo_pct_tot,
+       COUNT(*)                                                         AS n_run
+FROM r JOIN mp ON mp.run_id = r.id
+WHERE r.noise IS NOT NULL
+GROUP BY r.noise
+ORDER BY r.noise;`
+};
+
+/* =====================================================================
+   CARICAMENTO DATI: SQLite -> DuckDB (runs_olap / metrics_olap).
+   force=true dal bottone; auto (force=false) alla prima query se mai caricato.
+   ===================================================================== */
+async function loadDuck(force){
+  if(duckLoaded && !force) return true;
+  await ensureInitC();
+  anlyStatus('Caricamento dati in DuckDB…');
+  const info = await DatiC.loadIntoDuck();          // copia runs+metrics
+  duckLoaded = true;
+  elc('anlyLoadInfo').textContent =
+    'caricati ' + info.runs + ' run · ' + info.metrics + ' metriche';
+  anlyStatus(info.runs ? 'Dati pronti in DuckDB.' : 'Nessun run salvato: esegui e salva un Pair/Sweep.');
+  return true;
+}
+
+/* =====================================================================
+   ESECUZIONE QUERY + RENDERING TABELLA A COLONNE DINAMICHE.
+   ===================================================================== */
+function renderTable(rows){
+  const head = elc('anlyHead'), body = elc('anlyBody');
+  head.innerHTML = ''; body.innerHTML = '';
+  if(!rows || !rows.length){
+    body.innerHTML = '<tr><td class="empty">nessuna riga restituita.</td></tr>';
+    return;
+  }
+  const cols = Object.keys(rows[0]);
+  const htr = document.createElement('tr');
+  for(const c of cols){ const th = document.createElement('th'); th.textContent = c; htr.appendChild(th); }
+  head.appendChild(htr);
+  for(const row of rows){
+    const tr = document.createElement('tr');
+    for(const c of cols){
+      const v = row[c];
+      const isNum = (typeof v === 'number') && isFinite(v);
+      const td = document.createElement('td');
+      if(!isNum) td.className = 's';
+      td.textContent = (v === null || v === undefined) ? '—'
+        : (isNum && !Number.isInteger(v) ? String(Math.round(v * 10000) / 10000) : String(v));
+      tr.appendChild(td);
+    }
+    body.appendChild(tr);
+  }
+}
+
+async function runSql(sql){
+  anlyError('');
+  const q = (sql !== undefined ? sql : elc('anlySql').value).trim();
+  if(!q){ anlyError('Box SQL vuoto: scrivi una query o premi un\'analisi pronta.'); return; }
+  try{
+    await loadDuck(false);                    // auto-load alla prima esecuzione
+    const t0 = performance.now();
+    const rows = await DatiC.duck(q);         // array di oggetti (BigInt già normalizzati)
+    const ms = Math.round(performance.now() - t0);
+    lastRows = rows; lastMeta = { sql:q, ms };
+    renderTable(rows);
+    drawChart(rows);
+    elc('anlyMeta').textContent = rows.length + ' righe · ' + ms + ' ms';
+    anlyStatus('Query eseguita.');
+  }catch(err){
+    // Errore SQL mostrato in chiaro: la pagina resta viva.
+    lastRows = null;
+    anlyError('Errore SQL: ' + (err && err.message ? err.message : String(err)));
+    elc('anlyMeta').textContent = '';
+    anlyStatus('Query fallita (vedi errore sopra).');
+  }
+}
+
+/* Riempi il box SQL con una preset ed esegui subito. */
+async function preset(key){
+  elc('anlySql').value = Q[key];
+  await runSql(Q[key]);
+}
+
+/* =====================================================================
+   GRAFICO — canvas coerente col tema. Auto-rileva la forma del risultato:
+     • se ci sono colonne appaiate A_* / B_* numeriche + un asse X numerico
+       (goalPull, noise, value, seed, maxSteps, blobs) → LINEE A vs B;
+     • altrimenti se c'è una categoria (memoria/mem/kind) + una colonna
+       numerica → BARRE (A teal / B arancio quando la categoria è A/B);
+     • altrimenti nessun grafico (solo tabella).
+   ===================================================================== */
+const chartCv = elc('anlyChart'), cg = chartCv.getContext('2d');
+
+function isNumCol(rows, c){ return rows.every((r)=> r[c] === null || (typeof r[c] === 'number' && isFinite(r[c]))); }
+function clampc(v,lo,hi){ return v<lo?lo:(v>hi?hi:v); }
+
+function drawChart(rows){
+  const W = chartCv.width, H = chartCv.height;
+  cg.fillStyle = '#0a0e12'; cg.fillRect(0,0,W,H);
+  const cap = elc('anlyChartCap');
+  cap.textContent = '';
+  if(!rows || !rows.length){
+    cg.fillStyle = '#5b6b78'; cg.font = '12px Consolas,monospace';
+    cg.fillText('Nessun dato da plottare.', 18, H/2);
+    return;
+  }
+  const cols = Object.keys(rows[0]);
+
+  // 1) prova coppie A_* / B_* per grafico a linee.
+  const aCols = cols.filter((c)=> /^A[_-]/i.test(c) && isNumCol(rows,c));
+  let pair = null;
+  for(const a of aCols){
+    const suffix = a.slice(2);
+    const b = cols.find((c)=> new RegExp('^B[_-]' + suffix.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '$','i').test(c));
+    if(b && isNumCol(rows,b)){ pair = { a, b, suffix }; break; }
+  }
+  const xPref = ['goalPull','noise','value','seed','maxSteps','blobs'];
+  if(pair){
+    let xcol = cols.find((c)=> xPref.indexOf(c) >= 0 && isNumCol(rows,c));
+    if(!xcol) xcol = cols.find((c)=> c !== pair.a && c !== pair.b && isNumCol(rows,c));
+    if(xcol){ lineChart(rows, xcol, pair.a, pair.b);
+      cap.textContent = 'Linee · X=' + xcol + ' · A=' + pair.a + ' (teal) vs B=' + pair.b + ' (arancio).';
+      return; }
+  }
+
+  // 2) fallback a barre: categoria testuale + colonna-valore "sensata".
+  //    Categoria: preferisci memoria/mem, altrimenti primo testo con ≤16 valori.
+  //    Valore: preferisci una metrica aggregata (medi/media/pct/passi/memSize),
+  //    evita conteggi/estremi/id (n_run, count, min, max, id) e gli assi X.
+  const catCol = cols.find((c)=> /^(memoria|mem|kind)$/i.test(c) && !isNumCol(rows,c))
+      || cols.find((c)=> !isNumCol(rows,c) && new Set(rows.map((r)=>r[c])).size <= 16);
+  const prefRe = /(medi|media|avg|mean|pct|perc|success|tasso|memsize|passi|steps)/i;
+  const badRe  = /(^id$|_run$|^n_run$|count|_min$|_max$|(^|_)min$|(^|_)max$|run_id)/i;
+  const valCol =
+        cols.find((c)=> isNumCol(rows,c) && xPref.indexOf(c) < 0 && prefRe.test(c))
+     || cols.find((c)=> isNumCol(rows,c) && xPref.indexOf(c) < 0 && !badRe.test(c))
+     || cols.find((c)=> isNumCol(rows,c));
+  if(catCol && valCol){
+    barChart(rows, catCol, valCol);
+    cap.textContent = 'Barre · categoria=' + catCol + ' · valore=' + valCol + '.';
+    return;
+  }
+
+  cg.fillStyle = '#5b6b78'; cg.font = '12px Consolas,monospace';
+  cg.fillText('Risultato non plottabile: mostro solo la tabella.', 18, H/2);
+}
+
+function axes(ml,mr,mt,mb,W,H){ return { ml,mr,mt,mb, pw:W-ml-mr, ph:H-mt-mb }; }
+
+function lineChart(rows, xcol, aCol, bCol){
+  const W = chartCv.width, H = chartCv.height;
+  const A = axes(56,14,14,38,W,H);
+  const xs = rows.map((r)=> r[xcol]);
+  const ya = rows.map((r)=> r[aCol]);
+  const yb = rows.map((r)=> r[bCol]);
+  const allY = ya.concat(yb).filter((v)=> v !== null && isFinite(v));
+  const xmin = Math.min.apply(null, xs), xmax = Math.max.apply(null, xs);
+  const ymax = Math.max(1, Math.max.apply(null, allY)) * 1.08;
+  const X = (v)=> A.ml + (xmax > xmin ? (v - xmin)/(xmax - xmin) : 0.5) * A.pw;
+  const Y = (v)=> A.mt + A.ph - (v/ymax) * A.ph;
+
+  cg.strokeStyle = 'rgba(94,224,192,0.10)'; cg.lineWidth = 1;
+  cg.fillStyle = '#5b6b78'; cg.font = '10px Consolas,monospace';
+  for(let i=0;i<=4;i++){
+    const yv = ymax*i/4, y = Y(yv);
+    cg.beginPath(); cg.moveTo(A.ml,y); cg.lineTo(W-A.mr,y); cg.stroke();
+    cg.textAlign = 'right'; cg.fillText(String(Math.round(yv)), A.ml-6, y+3);
+  }
+  for(let i=0;i<=4;i++){
+    const xv = xmin + (xmax-xmin)*i/4, x = X(xv);
+    cg.beginPath(); cg.moveTo(x,A.mt); cg.lineTo(x,A.mt+A.ph); cg.stroke();
+    cg.textAlign = 'center'; cg.fillText(String(Math.round(xv*1000)/1000), x, A.mt+A.ph+14);
+  }
+  cg.strokeStyle = 'rgba(94,224,192,0.35)';
+  cg.beginPath(); cg.moveTo(A.ml,A.mt); cg.lineTo(A.ml,A.mt+A.ph); cg.lineTo(W-A.mr,A.mt+A.ph); cg.stroke();
+  cg.fillStyle = '#aebcc6'; cg.textAlign = 'center';
+  cg.fillText(xcol + ' →', A.ml + A.pw/2, H-6);
+
+  function line(arr, col){
+    cg.strokeStyle = col; cg.lineWidth = 1.8; cg.beginPath();
+    let started = false;
+    for(let i=0;i<rows.length;i++){
+      if(arr[i] === null || !isFinite(arr[i])) continue;
+      const x = X(xs[i]), y = Y(arr[i]);
+      if(!started){ cg.moveTo(x,y); started = true; } else cg.lineTo(x,y);
+    }
+    cg.stroke();
+    cg.fillStyle = col;
+    for(let i=0;i<rows.length;i++){
+      if(arr[i] === null || !isFinite(arr[i])) continue;
+      cg.beginPath(); cg.arc(X(xs[i]), Y(arr[i]), 2.6, 0, Math.PI*2); cg.fill();
+    }
+  }
+  line(ya, COL_A); line(yb, COL_B);
+  cg.font = '11px Consolas,monospace'; cg.textAlign = 'left';
+  cg.fillStyle = COL_A; cg.fillRect(W-A.mr-150, A.mt+6, 14, 3);  cg.fillText(aCol, W-A.mr-130, A.mt+11);
+  cg.fillStyle = COL_B; cg.fillRect(W-A.mr-150, A.mt+22, 14, 3); cg.fillText(bCol, W-A.mr-130, A.mt+27);
+}
+
+function barChart(rows, catCol, valCol){
+  const W = chartCv.width, H = chartCv.height;
+  const A = axes(56,14,14,44,W,H);
+  const cats = rows.map((r)=> String(r[catCol]));
+  const vals = rows.map((r)=> (r[valCol] === null ? 0 : r[valCol]));
+  const ymax = Math.max(1, Math.max.apply(null, vals)) * 1.12;
+  const Y = (v)=> A.mt + A.ph - (v/ymax) * A.ph;
+
+  cg.strokeStyle = 'rgba(94,224,192,0.10)'; cg.lineWidth = 1;
+  cg.fillStyle = '#5b6b78'; cg.font = '10px Consolas,monospace'; cg.textAlign = 'right';
+  for(let i=0;i<=4;i++){
+    const yv = ymax*i/4, y = Y(yv);
+    cg.beginPath(); cg.moveTo(A.ml,y); cg.lineTo(W-A.mr,y); cg.stroke();
+    cg.fillText(String(Math.round(yv)), A.ml-6, y+3);
+  }
+  cg.strokeStyle = 'rgba(94,224,192,0.35)';
+  cg.beginPath(); cg.moveTo(A.ml,A.mt); cg.lineTo(A.ml,A.mt+A.ph); cg.lineTo(W-A.mr,A.mt+A.ph); cg.stroke();
+
+  const n = rows.length;
+  const slot = A.pw / n, bw = clampc(slot*0.55, 6, 90);
+  for(let i=0;i<n;i++){
+    const cx = A.ml + slot*(i+0.5);
+    const h = (vals[i]/ymax) * A.ph;
+    const col = cats[i] === 'A' ? COL_A : (cats[i] === 'B' ? COL_B : (i % 2 ? COL_B : COL_A));
+    cg.fillStyle = col;
+    cg.fillRect(cx - bw/2, A.mt + A.ph - h, bw, h);
+    cg.fillStyle = '#aebcc6'; cg.font = '10px Consolas,monospace'; cg.textAlign = 'center';
+    cg.fillText(cats[i], cx, A.mt + A.ph + 14);
+    cg.fillStyle = col;
+    cg.fillText(String(Math.round(vals[i]*100)/100), cx, A.mt + A.ph - h - 4);
+  }
+  cg.fillStyle = '#aebcc6'; cg.textAlign = 'center';
+  cg.fillText(catCol + ' · ' + valCol, A.ml + A.pw/2, H-6);
+}
+
+/* =====================================================================
+   EXPORT — CSV e JSON del risultato corrente (download offline via Blob).
+   ===================================================================== */
+function downloadC(name, text, mime){
+  const url = URL.createObjectURL(new Blob([text], { type:mime }));
+  const el = document.createElement('a');
+  el.href = url; el.download = name;
+  document.body.appendChild(el); el.click(); el.remove();
+  setTimeout(()=> URL.revokeObjectURL(url), 1000);
+}
+function csvCell(v){
+  if(v === null || v === undefined) return '';
+  const s = String(v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+}
+function exportCsvC(){
+  if(!lastRows || !lastRows.length){ anlyStatus('Niente da esportare: esegui prima una query.'); return; }
+  const cols = Object.keys(lastRows[0]);
+  let csv = cols.map(csvCell).join(',') + '\n';
+  for(const row of lastRows) csv += cols.map((c)=> csvCell(row[c])).join(',') + '\n';
+  downloadC('void-lab-analisi.csv', csv, 'text/csv');
+  anlyStatus('CSV esportato.');
+}
+function exportJsonC(){
+  if(!lastRows || !lastRows.length){ anlyStatus('Niente da esportare: esegui prima una query.'); return; }
+  downloadC('void-lab-analisi.json', JSON.stringify(lastRows, null, 2), 'application/json');
+  anlyStatus('JSON esportato.');
+}
+
+/* =====================================================================
+   WIRING dei bottoni dello Strato C.
+   ===================================================================== */
+elc('bAnlyLoad').addEventListener('click', async () => {
+  try{ await loadDuck(true); }
+  catch(err){ anlyError('Errore caricamento dati: ' + (err && err.message ? err.message : err)); anlyStatus('Caricamento fallito.'); }
+});
+elc('bAnlyRun').addEventListener('click', () => runSql());
+elc('bAnlyWin').addEventListener('click', () => preset('win'));
+elc('bAnlySteps').addEventListener('click', () => preset('steps'));
+elc('bAnlyMem').addEventListener('click', () => preset('mem'));
+elc('bAnlyNoise').addEventListener('click', () => preset('noise'));
+elc('bAnlyCsv').addEventListener('click', exportCsvC);
+elc('bAnlyJson').addEventListener('click', exportJsonC);
+
+/* Query di esempio pre-compilata nel box + grafico placeholder. */
+elc('anlySql').value = Q.esempio;
+drawChart(null);
 </script>
