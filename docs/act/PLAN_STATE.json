@@ -1,0 +1,21 @@
+{
+  "feature": "void-lab-v1",
+  "invocation": "/act ultracode",
+  "flags": { "research_first": false, "orchestrate": false, "gate": false, "test": false, "ultracode": true },
+  "branch": "void-lab-v1",
+  "spec": "docs/specs/void-lab-v1.md",
+  "sections": [
+    { "id": 1, "name": "Core + Memoria pluggable", "status": "pending" },
+    { "id": 2, "name": "Runner + metriche", "status": "pending" },
+    { "id": 3, "name": "Sweep + curve", "status": "pending" },
+    { "id": 4, "name": "UI del banco", "status": "pending" },
+    { "id": 5, "name": "Persistenza + export", "status": "pending" },
+    { "id": 6, "name": "Test canonico + verifica", "status": "pending" }
+  ],
+  "default_decisions": [
+    "sweep di collaudo = noise 0->0.12, 10 punti",
+    "B cap tecnico 20000 anti-OOM",
+    "teoria-del-vuoto.html non committato (file esterno alla sessione, da rivedere con Armando)"
+  ],
+  "updated": "2026-07-14T00:00:00+02:00"
+}
