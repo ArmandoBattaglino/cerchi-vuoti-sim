@@ -43,6 +43,35 @@
   .pass{ color:var(--accent); font-weight:700; } .fail{ color:#ff7a9c; font-weight:700; }
   #plotSummary{ color:var(--dim); font-size:11px; margin-top:6px; min-height:14px; }
   code{ color:var(--blue); }
+
+  /* ---- STRATO B: ponte database + pannello Archivio (stesso tema fosforo) ---- */
+  #dbBanner{ display:none; margin:10px 16px 0; padding:8px 12px; border-radius:8px;
+             background:#2a1c10; border:1px solid #ffb14e55; color:#ffcf94; font-size:11px; line-height:1.5; }
+  #dbBanner.on{ display:block; }
+  #dbBanner b{ color:var(--org); }
+  .arch{ min-width:100%; flex:1 1 100%; }
+  .arch .head{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
+  #archCount{ color:var(--accent); font-weight:700; text-transform:none; letter-spacing:0; }
+  #archStatus{ color:var(--blue); font-size:11px; min-height:14px; }
+  .tblScroll{ overflow:auto; max-height:360px; border:1px solid var(--line); border-radius:8px; }
+  .arch table{ font-size:11px; margin:0; }
+  .arch th{ position:sticky; top:0; background:var(--panel); z-index:1; }
+  .arch th, .arch td{ text-align:left; white-space:nowrap; }
+  .arch td.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  .arch td.memA{ color:var(--accent); font-weight:700; }
+  .arch td.memB{ color:var(--org);   font-weight:700; }
+  .arch .acts{ white-space:nowrap; }
+  .arch .acts button{ padding:3px 6px; font-size:10px; margin-right:3px; }
+  .arch input.note{ width:130px; font-size:10px; padding:3px 5px; text-align:left; }
+  .arch .empty{ color:var(--dim); padding:10px 6px; text-align:center; }
+  #archModal{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.62); z-index:50;
+              align-items:center; justify-content:center; }
+  #archModal.on{ display:flex; }
+  #archModal .box{ background:var(--panel); border:1px solid var(--accent); border-radius:10px;
+                   max-width:660px; width:90%; max-height:82vh; overflow:auto; padding:14px; }
+  #archModal pre{ white-space:pre-wrap; word-break:break-word; color:#cfe8e0; font-size:11px;
+                  background:#0b1116; border:1px solid var(--line); border-radius:6px; padding:8px; margin:4px 0; }
+  #archModal .x{ float:right; }
 </style>
 
 <h1>Void Lab v1 — due politiche di memoria, stesso agente, stesso mondo</h1>
@@ -52,6 +81,9 @@
   A e B differiscono in <b>una cosa sola</b>: cosa entra in memoria. La sorpresa è calcolata con la stessa
   identica funzione. Verdetto numerico appaiato, deterministico (mulberry32), falsificabile.
 </p>
+
+<!-- STRATO B · banner mostrato dal modulo-ponte se manca la persistenza OPFS -->
+<div id="dbBanner"></div>
 
 <div class="wrap">
   <!-- ============ (1) ARENA VIVA ============ -->
@@ -67,6 +99,7 @@
     <div class="row"><span>seed</span><input id="inSeed" type="number" value="1337" step="1"></div>
     <div class="row"><span>innateSeed</span><input id="inInnate" type="number" value="1337" step="1"></div>
     <div class="row"><span>rumore percettivo</span><input id="inNoise" type="number" value="0.03" step="0.005" min="0" max="0.5"></div>
+    <div class="row"><span>goalPull (tiro al goal · abbassa per far contare la memoria)</span><input id="inGoal" type="number" value="0.95" step="0.05" min="0" max="1"></div>
     <div class="row"><span>maxSteps</span><input id="inSteps" type="number" value="4000" step="100" min="10"></div>
     <div class="row"><span>blobs (vuoti)</span><input id="inBlobs" type="number" value="7" step="1" min="1" max="30"></div>
     <div class="row"><span>mondo dinamico</span><input id="inDyn" type="checkbox"></div>
@@ -127,6 +160,38 @@
     <div id="plotSummary"></div>
   </div>
 </div>
+
+<!-- ============ (4) STRATO B · PANNELLO ARCHIVIO (alimentato dal modulo-ponte) ============ -->
+<div class="wrap">
+  <div class="card arch">
+    <div class="head">
+      <div class="lab" style="margin:0">Archivio esperimenti · <span id="archCount">esperimenti salvati: 0</span></div>
+      <div style="display:flex; gap:8px; align-items:center">
+        <span id="archStatus"></span>
+        <button id="bArchRefresh">Aggiorna</button>
+      </div>
+    </div>
+    <div class="tblScroll">
+      <table>
+        <thead><tr>
+          <th>data</th><th>tipo</th><th>mem</th>
+          <th class="num">seed</th><th class="num">goalPull</th><th class="num">noise</th>
+          <th class="num">passi</th><th class="num">|mem|</th><th>raggiunto</th>
+          <th>note</th><th>azioni</th>
+        </tr></thead>
+        <tbody id="archBody"><tr><td class="empty" colspan="11">nessun esperimento salvato.</td></tr></tbody>
+      </table>
+    </div>
+    <div class="note">
+      Ogni <b>Run in modalità Pair</b> salva due run (A e B); ogni <b>Sweep</b> salva ogni punto (A e B) con il valore spazzato.
+      <b>RIFAI</b> ricarica il config nel banco e ri-esegue (deterministico, stessi numeri, run singola A/B → nessun doppione).
+      <b>APRI</b> mostra config JSON + metriche + note. <b>ELIMINA</b> cancella dal database. La <b>nota</b> è modificabile e si salva nel database.
+    </div>
+  </div>
+</div>
+
+<!-- overlay dettaglio run (APRI) -->
+<div id="archModal"><div class="box"><button class="x" id="archModalX">chiudi</button><div id="archModalBody"></div></div></div>
 
 <script>
 "use strict";
@@ -620,7 +685,7 @@ function readCfg(){
   return normCfg({
     seed:+$('inSeed').value,
     world:{ size:[180,110], blobs:+$('inBlobs').value, dynamic:$('inDyn').checked },
-    agent:{ innateSeed:+$('inInnate').value, goal:true, memory:$('inMem').value },
+    agent:{ innateSeed:+$('inInnate').value, goal:true, goalPull:+$('inGoal').value, memory:$('inMem').value },
     run:{ maxSteps:+$('inSteps').value, noise:+$('inNoise').value },
     sweep:{ param:$('swParam').value, from:+$('swFrom').value, to:+$('swTo').value, steps:+$('swSteps').value }
   });
@@ -629,6 +694,7 @@ function applyCfg(c){
   c=normCfg(c);
   $('inSeed').value=c.seed;
   $('inInnate').value=c.agent.innateSeed;
+  $('inGoal').value=c.agent.goalPull;
   $('inNoise').value=c.run.noise;
   $('inSteps').value=c.run.maxSteps;
   $('inBlobs').value=c.world.blobs;
@@ -962,5 +1028,306 @@ $('cfgText').value=JSON.stringify(defaultCfg(),null,2);
 fillTable(null,null);
 drawPlot();
 requestAnimationFrame(frame);
+})();
+</script>
+
+<!-- =====================================================================
+     STRATO B · MODULO-PONTE verso il database locale (lib/dati.js).
+     È un <script type="module"> SEPARATO: non tocca né rompe lo script
+     classico qui sopra (motore di simulazione + __pair/__sweep intatti).
+     Comunica col banco SOLO tramite:
+       - le API headless deterministiche  window.__pair / window.__sweep
+       - gli input della UI (stessi id che legge readCfg())
+       - addEventListener sui bottoni Run/Sweep (coesiste con .onclick del
+         banco: NON sovrascrive il wiring esistente).
+     Tutto offline. Ogni errore del DB è catturato: il banco non si rompe.
+     ===================================================================== -->
+<script type="module">
+"use strict";
+
+/* Import DINAMICO di Dati: se fallisce (es. aperto via file:// senza
+   lanciatore) il modulo gira comunque e mostra il banner, senza crash. */
+let Dati = null;
+let dbReady = false;
+let initPromise = null;
+
+function ensureInit(){
+  if(initPromise) return initPromise;          // singleton: un solo init
+  initPromise = (async () => {
+    const mod = await import('./lib/dati.js');  // ESM locale (Strato A)
+    Dati = mod.default || mod.Dati;
+    const st = await Dati.init();               // avvia SQLite (+DuckDB)
+    dbReady = true;
+    return st;
+  })();
+  return initPromise;
+}
+
+/* ---------- piccoli helper DOM/numeri (namespace del ponte) ---------- */
+const el = (id) => document.getElementById(id);
+const val = (id) => el(id).value;
+function setVal(id, v){ const e = el(id); if(e) e.value = v; }
+function round3(v){ return Math.round(v*1000)/1000; }
+function fmtNum(v){
+  if(v===null || v===undefined || !isFinite(+v)) return '—';
+  const n = +v;
+  return (Number.isInteger(n) || Math.abs(n) >= 1000) ? String(n) : String(Math.round(n*10000)/10000);
+}
+function archStatus(msg){ const s = el('archStatus'); if(s) s.textContent = msg || ''; }
+
+/* Banner "manca persistenza" / "DB non disponibile". Il banco resta usabile. */
+function showBanner(html){ const b = el('dbBanner'); if(b){ b.innerHTML = html; b.classList.add('on'); } }
+
+/* =====================================================================
+   LETTURA CONFIG DALLA UI — rispecchia readCfg() del banco (stessi id).
+   agent.goalPull viene letto dal campo #inGoal (default 0.95 = GOALG del
+   core) così il config salvato è COMPLETO e un eventuale goalPull != 0.95
+   viene persistito e riprodotto identico da RIFAI.
+   Nota: __pair riceve questo oggetto e lo normalizza da sé via normCfg().
+   ===================================================================== */
+const GOALPULL_DEFAULT = 0.95;   // = costante GOALG del core (tiro al goal)
+function domCfg(){
+  return {
+    seed: +val('inSeed'),
+    world: { size:[180,110], blobs:+val('inBlobs'), dynamic: el('inDyn').checked },
+    agent: { innateSeed:+val('inInnate'), goal:true, goalPull: Number.isFinite(+val('inGoal')) ? +val('inGoal') : GOALPULL_DEFAULT, memory: val('inMem') },
+    run:   { maxSteps:+val('inSteps'), noise:+val('inNoise') },
+    sweep: { param: val('swParam'), from:+val('swFrom'), to:+val('swTo'), steps:+val('swSteps') }
+  };
+}
+/* setParam del banco, replicato per costruire il config di ogni punto sweep. */
+function applyParam(c, param, value){
+  if(param==='noise')         c.run.noise   = Math.max(0, value);
+  else if(param==='goalPull') c.agent.goalPull = Math.max(0, value);
+  else if(param==='blobs')    c.world.blobs = Math.max(1, Math.round(value));
+  else if(param==='seed')     c.seed        = Math.round(value);
+  else if(param==='maxSteps') c.run.maxSteps= Math.max(1, Math.round(value));
+}
+const clone = (o) => JSON.parse(JSON.stringify(o));
+
+/* =====================================================================
+   SALVATAGGIO — una "faccia" (A o B) del confronto → un run nel DB.
+   experiment = id di gruppo condiviso da A e B dello stesso confronto.
+   ===================================================================== */
+async function saveSide(kind, baseCfg, mem, r, grp, extraTags){
+  const cfg = clone(baseCfg);
+  cfg.agent.memory = mem;                         // config completo, lato giusto
+  const seed     = cfg.seed;
+  const goalPull = cfg.agent.goalPull;
+  const noise    = cfg.run.noise;
+  const tags = ['mem:'+mem, 'seed:'+seed, 'goalPull:'+goalPull, 'noise:'+noise, 'grp:'+grp];
+  if(extraTags) for(const t of extraTags) tags.push(t);
+  const metrics = { steps:r.steps, memSize:r.memSize, reached: r.reached ? 1 : 0 };
+  if(typeof r.finalDist === 'number') metrics.finalDist = r.finalDist;  // presente nei pair
+  // experiment = grp: A e B condividono il gruppo → stesso confronto identificabile.
+  await Dati.saveRun({ experiment: grp, kind, config: cfg, metrics, notes:'', tags });
+}
+
+/* --- Run in modalità Pair → salva DUE run (A e B) dello stesso confronto --- */
+async function onRunSave(){
+  try{
+    if(val('inMem') !== 'Pair') return;   // solo il confronto A/B viene salvato
+    await ensureInit();
+    if(!dbReady) return;
+    const base = domCfg();
+    const res  = window.__pair(base);      // headless deterministico = numeri del banco
+    const grp  = 'pair-' + Date.now() + '-' + Math.floor(Math.random()*1e6);
+    await saveSide('pair', base, 'A', res.A, grp, null);
+    await saveSide('pair', base, 'B', res.B, grp, null);
+    await refreshArchive();
+    archStatus('Confronto salvato (A+B).');
+  }catch(err){ archStatus('Errore salvataggio confronto: ' + err.message); }
+}
+
+/* --- Sweep → per ogni punto un pair, salvato come 2 run kind "sweep" --- */
+async function onSweepSave(){
+  try{
+    await ensureInit();
+    if(!dbReady) return;
+    const base  = domCfg();
+    const s     = base.sweep;
+    const steps = Math.max(2, Math.min(60, s.steps|0));
+    archStatus('Salvataggio sweep…');
+    for(let i=0;i<steps;i++){
+      // stessa formula del banco: v non arrotondato entra nella simulazione
+      const v   = s.from + (s.to - s.from) * i / (steps - 1);
+      const cfg = clone(base);
+      applyParam(cfg, s.param, v);
+      const res = window.__pair(cfg);      // pair al valore spazzato (deterministico)
+      const grp = 'sweep-' + Date.now() + '-' + i + '-' + Math.floor(Math.random()*1e5);
+      const extra = ['kind:sweep', 'sweepParam:'+s.param, 'sweepVal:'+round3(v)];
+      await saveSide('sweep', cfg, 'A', res.A, grp, extra);
+      await saveSide('sweep', cfg, 'B', res.B, grp, extra);
+      archStatus('Salvataggio sweep… ' + (i+1) + '/' + steps);
+    }
+    await refreshArchive();
+    archStatus('Sweep salvato (' + steps + ' punti · ' + (steps*2) + ' run).');
+  }catch(err){ archStatus('Errore salvataggio sweep: ' + err.message); }
+}
+
+/* =====================================================================
+   RENDERING ARCHIVIO — tabella di TUTTI i run (listRuns), dal più recente.
+   Le righe sono costruite via DOM (le note utente non passano da innerHTML).
+   ===================================================================== */
+function td(text){ const d = document.createElement('td'); d.textContent = (text===null||text===undefined) ? '—' : String(text); return d; }
+function tdNum(v){ const d = td(fmtNum(v)); d.className = 'num'; return d; }
+function btn(label, fn){ const b = document.createElement('button'); b.textContent = label; b.addEventListener('click', fn); return b; }
+function memFromTags(tags){
+  if(!tags) return null;
+  const m = String(tags).split(',').find((t)=>t.indexOf('mem:')===0);
+  return m ? m.slice(4) : null;
+}
+
+function renderArchive(runs, mm){
+  const tb = el('archBody');
+  tb.innerHTML = '';
+  if(!runs.length){
+    tb.innerHTML = '<tr><td class="empty" colspan="11">nessun esperimento salvato.</td></tr>';
+    return;
+  }
+  for(const run of runs){
+    let cfg = {};
+    try{ cfg = JSON.parse(run.config_json || '{}'); }catch(_e){ cfg = {}; }
+    const m   = mm[run.id] || {};
+    const mem = (cfg.agent && cfg.agent.memory) || memFromTags(run.tags) || '—';
+
+    const tr = document.createElement('tr');
+    tr.appendChild(td(new Date(run.created_at).toLocaleString()));
+    tr.appendChild(td(run.kind));
+    const mTd = td(mem); mTd.className = mem==='A' ? 'memA' : (mem==='B' ? 'memB' : ''); tr.appendChild(mTd);
+    tr.appendChild(tdNum(cfg.seed));
+    tr.appendChild(tdNum(cfg.agent && cfg.agent.goalPull));
+    tr.appendChild(tdNum(cfg.run && cfg.run.noise));
+    tr.appendChild(tdNum(m.steps));
+    tr.appendChild(tdNum(m.memSize));
+    tr.appendChild(td(m.reached===1 ? 'sì' : (m.reached===0 ? 'no' : '—')));
+
+    // NOTE modificabile → UPDATE runs.notes
+    const nTd = document.createElement('td');
+    const inp = document.createElement('input');
+    inp.className = 'note'; inp.value = run.notes || ''; inp.title = 'nota (si salva nel database)';
+    inp.addEventListener('change', () => saveNote(run.id, inp.value));
+    nTd.appendChild(inp); tr.appendChild(nTd);
+
+    // AZIONI: RIFAI / APRI / ELIMINA
+    const aTd = document.createElement('td'); aTd.className = 'acts';
+    aTd.appendChild(btn('RIFAI',   () => redo(run, cfg)));
+    aTd.appendChild(btn('APRI',    () => openDetail(run, cfg, m)));
+    aTd.appendChild(btn('ELIMINA', () => del(run.id)));
+    tr.appendChild(aTd);
+
+    tb.appendChild(tr);
+  }
+}
+
+async function refreshArchive(){
+  try{
+    await ensureInit();
+    const runs  = await Dati.listRuns();                                   // tutti, id DESC
+    const mrows = await Dati.sqlite('SELECT run_id, key, value FROM metrics', []);
+    const mm = {};
+    for(const r of mrows){ (mm[r.run_id] || (mm[r.run_id] = {}))[r.key] = r.value; }
+    el('archCount').textContent = 'esperimenti salvati: ' + runs.length;
+    renderArchive(runs, mm);
+  }catch(err){
+    el('archCount').textContent = 'esperimenti salvati: —';
+    el('archBody').innerHTML = '<tr><td class="empty" colspan="11">archivio non disponibile (' + (err.message||err) + ')</td></tr>';
+  }
+}
+
+/* --- RIFAI: ricarica il config nella UI e ri-esegue (run singola A/B).
+       Deterministico: stessi numeri. Single-mode → onRunSave non ri-salva. --- */
+function redo(run, cfg){
+  try{
+    if(cfg.seed !== undefined) setVal('inSeed', cfg.seed);
+    if(cfg.agent && cfg.agent.innateSeed !== undefined) setVal('inInnate', cfg.agent.innateSeed);
+    // goalPull: campo di prima classe (sweep param) — va ripristinato o RIFAI userebbe il default 0.95
+    setVal('inGoal', (cfg.agent && cfg.agent.goalPull !== undefined) ? cfg.agent.goalPull : GOALPULL_DEFAULT);
+    if(cfg.run){
+      if(cfg.run.noise    !== undefined) setVal('inNoise', cfg.run.noise);
+      if(cfg.run.maxSteps !== undefined) setVal('inSteps', cfg.run.maxSteps);
+    }
+    if(cfg.world){
+      if(cfg.world.blobs !== undefined) setVal('inBlobs', cfg.world.blobs);
+      el('inDyn').checked = !!cfg.world.dynamic;
+    }
+    const mem = (cfg.agent && cfg.agent.memory === 'B') ? 'B' : 'A';
+    el('inMem').value = mem;                       // singola: riproduce ESATTAMENTE quel lato
+    window.scrollTo({ top:0, behavior:'smooth' });
+    el('bRun').click();                            // usa lo startRun del banco (via .onclick)
+    archStatus('RIFAI: eseguo ' + mem + ' (seed ' + cfg.seed + ') — deterministico.');
+  }catch(err){ archStatus('Errore RIFAI: ' + err.message); }
+}
+
+/* --- APRI: dettaglio config JSON completo + metriche + note --- */
+function openDetail(run, cfg, m){
+  const body = el('archModalBody');
+  body.innerHTML = '';
+  const mk = (cls, txt, mt) => { const d = document.createElement('div'); d.className = cls; if(mt) d.style.marginTop = mt; d.textContent = txt; return d; };
+  const pre = (txt) => { const p = document.createElement('pre'); p.textContent = txt; return p; };
+  const metricsTxt = Object.keys(m).length ? Object.keys(m).map((k)=>k+': '+m[k]).join('\n') : '(nessuna metrica)';
+  body.appendChild(mk('lab', 'Run #' + run.id + ' · ' + run.kind + ' · ' + new Date(run.created_at).toLocaleString()));
+  body.appendChild(mk('lab', 'config', '8px'));
+  body.appendChild(pre(JSON.stringify(cfg, null, 2)));
+  body.appendChild(mk('lab', 'metriche', '8px'));
+  body.appendChild(pre(metricsTxt));
+  body.appendChild(mk('lab', 'tags', '8px'));
+  body.appendChild(pre(run.tags || '(nessun tag)'));
+  body.appendChild(mk('lab', 'note', '8px'));
+  body.appendChild(pre(run.notes || '(vuote)'));
+  el('archModal').classList.add('on');
+}
+function closeModal(){ el('archModal').classList.remove('on'); }
+
+/* --- ELIMINA: cancella metriche + run --- */
+async function del(id){
+  try{
+    if(!window.confirm('Eliminare il run #' + id + ' dal database?')) return;
+    await ensureInit();
+    await Dati.sqlite('DELETE FROM metrics WHERE run_id = ?', [id]);
+    await Dati.sqlite('DELETE FROM runs WHERE id = ?', [id]);
+    await refreshArchive();
+    archStatus('Run #' + id + ' eliminato.');
+  }catch(err){ archStatus('Errore eliminazione: ' + err.message); }
+}
+
+/* --- NOTE: salva la nota della riga nel campo notes del run --- */
+async function saveNote(id, text){
+  try{
+    await ensureInit();
+    await Dati.sqlite('UPDATE runs SET notes = ? WHERE id = ?', [text, id]);
+    archStatus('Nota salvata (run #' + id + ').');
+  }catch(err){ archStatus('Errore salvataggio nota: ' + err.message); }
+}
+
+/* =====================================================================
+   WIRING + AVVIO DEL PONTE.
+   I listener sono attaccati SUBITO (click precoci gestiti: gli handler
+   fanno ensureInit() al loro interno). Poi init + primo refresh.
+   ===================================================================== */
+el('bRun').addEventListener('click', onRunSave);       // coesiste con .onclick=startRun
+el('bSweep').addEventListener('click', onSweepSave);   // coesiste con .onclick=runSweepUI
+el('bArchRefresh').addEventListener('click', refreshArchive);
+el('archModalX').addEventListener('click', closeModal);
+el('archModal').addEventListener('click', (ev) => { if(ev.target === el('archModal')) closeModal(); });
+
+(async function boot(){
+  try{
+    const st = await ensureInit();
+    if(!st.persistent){
+      // Non isolati / niente OPFS: il banco funziona, ma senza persistenza.
+      showBanner('<b>Persistenza OFF.</b> Per salvare gli esperimenti apri il lab con ' +
+                 '<b>avvia-lab.bat</b> (doppio click). Ora il banco funziona lo stesso, ma i dati ' +
+                 'NON sopravvivono alla chiusura (SQLite in-memory).');
+    }
+    await refreshArchive();
+    archStatus(st.persistent ? 'Database pronto (persistente).' : 'Database in-memory (non persistente).');
+  }catch(err){
+    // Import/init falliti (tipico: aperto senza lanciatore). Banco intatto.
+    showBanner('<b>Archivio non disponibile.</b> Apri il lab con <b>avvia-lab.bat</b> ' +
+               '(doppio click) per la persistenza. Il banco resta pienamente utilizzabile. ' +
+               '<span style="color:#8aa">(' + (err.message||err) + ')</span>');
+    archStatus('Database non disponibile: solo simulazione.');
+  }
 })();
 </script>
