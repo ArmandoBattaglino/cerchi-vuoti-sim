@@ -1,6 +1,6 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>Void Lab v1 — banco A/B sulle politiche di memoria</title>
+<title>Void Lab — banco A/B sulle politiche di memoria</title>
 <style>
   /* ---- tema fosforo verde, coerente con arena-vuoto.html / modello-vuoto.html ---- */
   :root{ --bg:#0a0e12; --panel:#111820; --dim:#5b6b78; --accent:#5ee0c0; --org:#ffb14e;
@@ -73,6 +73,31 @@
                   background:#0b1116; border:1px solid var(--line); border-radius:6px; padding:8px; margin:4px 0; }
   #archModal .x{ float:right; }
 
+  /* ---- STRATO D · RIFINITURA: istruzioni, stato DB, filtri, strumenti database ---- */
+  .howto{ margin:10px 16px 0; max-width:100%; border-color:#1f3a34; }
+  .howto .steps{ color:#aebcc6; font-size:11px; line-height:1.7; margin:4px 0; }
+  .howto .steps b{ color:var(--accent); }
+  .howto .steps .warn{ color:var(--org); }
+  #dbStat{ margin-top:8px; display:flex; flex-wrap:wrap; gap:6px 16px; font-size:11px; color:var(--dim);
+           border-top:1px solid var(--line); padding-top:8px; }
+  #dbStat .kv b{ color:var(--blue); font-weight:600; }
+  #dbStat .ok{ color:var(--accent); font-weight:700; }
+  #dbStat .no{ color:#ff7a9c; font-weight:700; }
+  /* titoli di sezione: separano visivamente Banco / Archivio / Analisi */
+  .sect{ color:var(--accent); font-size:13px; font-weight:600; margin:22px 16px 0;
+         border-top:1px solid var(--line); padding-top:14px; }
+  .sect small{ color:var(--dim); font-weight:400; font-size:11px; margin-left:8px; }
+  /* strumenti database (esporta / importa / svuota) */
+  .dbTools{ display:flex; flex-wrap:wrap; gap:6px; margin:2px 0 8px; }
+  button.danger{ border-color:#5a2230; color:#ff9db2; }
+  button.danger:hover{ border-color:#ff7a9c; }
+  /* filtri live dell'archivio */
+  .archFilters{ display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; margin:0 0 8px;
+                padding:8px 10px; background:#0b1116; border:1px solid var(--line); border-radius:8px; }
+  .archFilters label{ color:#aebcc6; display:flex; align-items:center; gap:6px; }
+  .archFilters input.search{ width:180px; text-align:left; }
+  .archFilters .clr{ color:var(--dim); font-size:10px; margin-left:auto; }
+
   /* ---- STRATO C · TAVOLO DI ANALISI (motore DuckDB, stesso tema fosforo) ---- */
   .anly{ min-width:100%; flex:1 1 100%; }
   .anly .head{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
@@ -96,7 +121,7 @@
   #anlyChartCap{ color:var(--dim); font-size:11px; margin-top:4px; min-height:14px; }
 </style>
 
-<h1>Void Lab v1 — due politiche di memoria, stesso agente, stesso mondo</h1>
+<h1>Void Lab — due politiche di memoria, stesso agente, stesso mondo</h1>
 <p class="sub">
   <b>Ipotesi:</b> una memoria relazionale <b class="colA">A = novelty-gated</b> (scrive solo novità strutturata, cap 200)
   dà più potere gestionale con meno storage di una <b class="colB">B = store-all</b> (scrive ogni percetto).
@@ -106,6 +131,22 @@
 
 <!-- STRATO B · banner mostrato dal modulo-ponte se manca la persistenza OPFS -->
 <div id="dbBanner"></div>
+
+<!-- ============ STRATO D · «COME SI USA» + STATO DATABASE (sempre visibile) ============ -->
+<div class="card howto" id="howto">
+  <div class="lab">Come si usa</div>
+  <div class="steps">
+    Apri il lab con <b>avvia-lab.bat</b> (doppio click): serve a dare al browser la <b>persistenza vera</b>
+    (OPFS) così gli esperimenti restano salvati <b>per sempre</b>. Se apri il file con un doppio click diretto,
+    il banco funziona lo stesso ma <span class="warn">i dati NON sopravvivono</span> alla chiusura (SQLite in-memory).
+  </div>
+  <div class="steps">
+    · <b>Banco</b>: imposti il confronto A/B e premi Run / Sweep — motore deterministico, stessi numeri.<br>
+    · <b>Archivio</b>: ogni Run/Sweep finisce nel database, con Rifai / Apri / Elimina / Note, filtri, esporta e importa.<br>
+    · <b>Analisi</b>: query SQL analitiche (DuckDB) su tutti gli esperimenti salvati.
+  </div>
+  <div id="dbStat"><span class="kv">database: in avvio…</span></div>
+</div>
 
 <div class="wrap">
   <!-- ============ (1) ARENA VIVA ============ -->
@@ -184,6 +225,7 @@
 </div>
 
 <!-- ============ (4) STRATO B · PANNELLO ARCHIVIO (alimentato dal modulo-ponte) ============ -->
+<h2 class="sect">Archivio &amp; database <small>tutti gli esperimenti salvati · filtri · esporta / importa / svuota</small></h2>
 <div class="wrap">
   <div class="card arch">
     <div class="head">
@@ -193,6 +235,29 @@
         <button id="bArchRefresh">Aggiorna</button>
       </div>
     </div>
+
+    <!-- STRATO D · strumenti database: il PONTE per l'analisi esterna + reset pulito -->
+    <div class="dbTools">
+      <button id="bArchExport" title="Scarica un unico JSON con TUTTI gli esperimenti (per passarlo a un assistente e farci analisi profonda)">Esporta tutto</button>
+      <button id="bArchImport" title="Carica un JSON esportato e re-inserisce i run nel database, senza duplicati grossolani">Importa</button>
+      <input id="archImportFile" type="file" accept=".json,application/json" style="display:none">
+      <button id="bArchClear" class="danger" title="Cancella TUTTI gli esperimenti/run/metriche per ripartire puliti">Svuota database</button>
+    </div>
+
+    <!-- STRATO D · filtri live (lato JS, sui run già caricati) -->
+    <div class="archFilters">
+      <label>memoria
+        <select id="fltMem"><option value="">tutti</option><option value="A">A</option><option value="B">B</option></select>
+      </label>
+      <label>tipo
+        <select id="fltKind"><option value="">tutti</option><option value="pair">pair</option><option value="sweep">sweep</option><option value="run">run</option></select>
+      </label>
+      <label>cerca
+        <input id="fltQ" class="search" type="text" placeholder="tag o note…" spellcheck="false">
+      </label>
+      <span id="archFilterInfo" class="clr"></span>
+    </div>
+
     <div class="tblScroll">
       <table>
         <thead><tr>
@@ -213,6 +278,7 @@
 </div>
 
 <!-- ============ (5) STRATO C · TAVOLO DI ANALISI (motore DuckDB / OLAP) ============ -->
+<h2 class="sect">Tavolo di analisi <small>query SQL analitiche (DuckDB / OLAP) su tutti gli esperimenti</small></h2>
 <div class="wrap">
   <div class="card anly">
     <div class="head">
@@ -1294,6 +1360,9 @@ function renderArchive(runs, mm){
   }
 }
 
+/* STRATO D · cache dei run caricati: i filtri lavorano lato JS su questi. */
+let _allRuns = [], _allMM = {};
+
 async function refreshArchive(){
   try{
     await ensureInit();
@@ -1301,12 +1370,160 @@ async function refreshArchive(){
     const mrows = await Dati.sqlite('SELECT run_id, key, value FROM metrics', []);
     const mm = {};
     for(const r of mrows){ (mm[r.run_id] || (mm[r.run_id] = {}))[r.key] = r.value; }
-    el('archCount').textContent = 'esperimenti salvati: ' + runs.length;
-    renderArchive(runs, mm);
+    _allRuns = runs; _allMM = mm;                       // cache per i filtri live
+    setExpCount(new Set(runs.map((r)=> r.experiment)).size);   // stato: numero esperimenti
+    applyArchFilters();                                 // rende la lista applicando i filtri correnti
   }catch(err){
+    _allRuns = []; _allMM = {};
     el('archCount').textContent = 'esperimenti salvati: —';
+    const info = el('archFilterInfo'); if(info) info.textContent = '';
     el('archBody').innerHTML = '<tr><td class="empty" colspan="11">archivio non disponibile (' + (err.message||err) + ')</td></tr>';
   }
+}
+
+/* =====================================================================
+   STRATO D · FILTRI ARCHIVIO (live, lato JS sui run già caricati).
+   memoria (A/B/tutti) · tipo (pair/sweep/run/tutti) · ricerca su tag+note.
+   ===================================================================== */
+function readArchFilters(){
+  return {
+    mem:  (el('fltMem')  && el('fltMem').value)  || '',
+    kind: (el('fltKind') && el('fltKind').value) || '',
+    q:   ((el('fltQ')    && el('fltQ').value)    || '').trim().toLowerCase()
+  };
+}
+function runMem(run){
+  let cfg = {}; try{ cfg = JSON.parse(run.config_json || '{}'); }catch(_e){ cfg = {}; }
+  return (cfg.agent && cfg.agent.memory) || memFromTags(run.tags) || '';
+}
+function applyArchFilters(){
+  const f = readArchFilters();
+  let rows = _allRuns;
+  if(f.mem)  rows = rows.filter((r)=> runMem(r) === f.mem);
+  if(f.kind) rows = rows.filter((r)=> r.kind === f.kind);
+  if(f.q)    rows = rows.filter((r)=> (((r.tags||'') + ' ' + (r.notes||'')).toLowerCase().indexOf(f.q) >= 0));
+  el('archCount').textContent = 'esperimenti salvati: ' + _allRuns.length;
+  const info = el('archFilterInfo');
+  if(info) info.textContent = (rows.length !== _allRuns.length) ? ('mostrati ' + rows.length + ' di ' + _allRuns.length) : '';
+  renderArchive(rows, _allMM);
+}
+
+/* =====================================================================
+   STRATO D · STATO DATABASE nel pannello «Come si usa».
+   ===================================================================== */
+function setExpCount(n){ const e = el('dbStatExp'); if(e) e.textContent = (n===undefined||n===null) ? '—' : String(n); }
+function renderDbStat(st){
+  const box = el('dbStat'); if(!box) return;
+  // normalizza la versione: alcune (DuckDB) portano già il prefisso 'v'.
+  const withV = (v) => v ? (/^v/i.test(String(v)) ? String(v) : ('v' + v)) : '—';
+  const yn = st.persistent ? '<span class="ok">sì</span>' : '<span class="no">no</span>';
+  box.innerHTML =
+    '<span class="kv">motore SQLite: <b>' + st.sqlite.mode + (st.sqlite.version ? (' · ' + withV(st.sqlite.version)) : '') + '</b></span>' +
+    '<span class="kv">motore DuckDB: <b>' + withV(st.duckdb.version) + '</b></span>' +
+    '<span class="kv">persistente: ' + yn + '</span>' +
+    '<span class="kv">esperimenti: <b id="dbStatExp">—</b></span>';
+}
+
+/* =====================================================================
+   STRATO D · ESPORTA TUTTO — un unico JSON con experiments + runs + metrics
+   (letti da Dati.sqlite). È il PONTE per l'analisi esterna: passi il file a
+   un assistente per un'analisi profonda. Mostra quanti run esportati.
+   ===================================================================== */
+function dlJson(name, text){
+  const url = URL.createObjectURL(new Blob([text], { type:'application/json' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=> URL.revokeObjectURL(url), 1000);
+}
+async function exportAll(){
+  try{
+    await ensureInit();
+    const experiments = await Dati.sqlite('SELECT id, name, created_at, tags FROM experiments ORDER BY id', []);
+    const runs = await Dati.sqlite(
+      'SELECT r.id, r.experiment_id, e.name AS experiment, r.created_at, r.config_json, r.kind, r.tags, r.notes ' +
+      'FROM runs r JOIN experiments e ON e.id = r.experiment_id ORDER BY r.id', []);
+    const metrics = await Dati.sqlite('SELECT run_id, key, value FROM metrics ORDER BY run_id, key', []);
+    const payload = {
+      format: 'void-lab-export',
+      version: 1,
+      exported_at: new Date().toISOString(),
+      counts: { experiments: experiments.length, runs: runs.length, metrics: metrics.length },
+      experiments, runs, metrics
+    };
+    dlJson('void-lab-tutto.json', JSON.stringify(payload, null, 2));
+    archStatus('Esportati ' + runs.length + ' run · ' + experiments.length + ' esperimenti · ' + metrics.length + ' metriche.');
+  }catch(err){ archStatus('Errore export: ' + (err.message||err)); }
+}
+
+/* =====================================================================
+   STRATO D · IMPORTA — legge un JSON esportato e re-inserisce i run.
+   Idempotente / anti-duplicato: si genera una FIRMA per ogni run
+   (experiment|kind|config_json|tags|notes); i run la cui firma è già
+   presente nel database (o già importati in questo batch) vengono saltati.
+   I run nuovi passano da Dati.saveRun (nuovi id + metriche associate).
+   ===================================================================== */
+function runSig(r){ return [r.experiment, r.kind, r.config_json, r.tags, r.notes].join(''); }
+async function importAll(file){
+  try{
+    await ensureInit();
+    const text = await file.text();
+    let data;
+    try{ data = JSON.parse(text); }catch(_e){ archStatus('Import: JSON non valido.'); return; }
+    if(!data || !Array.isArray(data.runs)){ archStatus('Import: file non riconosciuto (manca "runs").'); return; }
+
+    // metriche raggruppate per run_id (id del FILE, non del database).
+    const metricsByRun = {};
+    if(Array.isArray(data.metrics)) for(const m of data.metrics){ (metricsByRun[m.run_id] || (metricsByRun[m.run_id] = {}))[m.key] = m.value; }
+    // fallback nome esperimento se un run non porta il campo experiment.
+    const expNameById = {};
+    if(Array.isArray(data.experiments)) for(const e of data.experiments) expNameById[e.id] = e.name;
+
+    // firme dei run GIÀ presenti nel database → dedup contro lo stato attuale.
+    const existing = await Dati.sqlite(
+      'SELECT e.name AS experiment, r.kind, r.config_json, r.tags, r.notes ' +
+      'FROM runs r JOIN experiments e ON e.id = r.experiment_id', []);
+    const seen = new Set(existing.map(runSig));
+
+    let imported = 0, skipped = 0;
+    for(const run of data.runs){
+      const experiment = run.experiment || expNameById[run.experiment_id] || 'default';
+      const configJson = run.config_json || '{}';
+      const kind  = run.kind  || 'run';
+      const tags  = run.tags  || '';
+      const notes = run.notes || '';
+      const sig = runSig({ experiment, kind, config_json: configJson, tags, notes });
+      if(seen.has(sig)){ skipped++; continue; }                 // duplicato grossolano → salta
+      let config = {}; try{ config = JSON.parse(configJson); }catch(_e){ config = {}; }
+      await Dati.saveRun({ experiment, kind, config, metrics: metricsByRun[run.id] || {}, notes, tags });
+      seen.add(sig); imported++;
+    }
+
+    await refreshArchive();
+    try{ await Dati.loadIntoDuck(); }catch(_e){}                 // riallinea le tabelle OLAP
+    window.dispatchEvent(new CustomEvent('voidlab:db-changed'));  // avvisa il tavolo di analisi
+    archStatus('Importati ' + imported + ' run · ' + skipped + ' saltati (già presenti).');
+  }catch(err){ archStatus('Errore import: ' + (err.message||err)); }
+}
+
+/* =====================================================================
+   STRATO D · SVUOTA DATABASE — cancella experiments/runs/metrics (con
+   conferma) per ripartire puliti. Dopo: contatore a 0, Archivio e Analisi
+   si svuotano.
+   ===================================================================== */
+async function clearDb(){
+  try{
+    if(!window.confirm('Svuotare TUTTO il database?\nCancella esperimenti, run e metriche. L\'operazione non è reversibile.')) return;
+    await ensureInit();
+    await Dati.sqlite('DELETE FROM metrics', []);
+    await Dati.sqlite('DELETE FROM runs', []);
+    await Dati.sqlite('DELETE FROM experiments', []);
+    try{ await Dati.sqlite('DELETE FROM sqlite_sequence', []); }catch(_e){ /* tabella assente: ok */ }
+    await refreshArchive();                                      // contatore → 0
+    try{ await Dati.loadIntoDuck(); }catch(_e){}                 // svuota runs_olap/metrics_olap
+    window.dispatchEvent(new CustomEvent('voidlab:db-cleared')); // il tavolo di analisi si azzera
+    archStatus('Database svuotato: 0 run.');
+  }catch(err){ archStatus('Errore svuotamento: ' + (err.message||err)); }
 }
 
 /* --- RIFAI: ricarica il config nella UI e ri-esegue (run singola A/B).
@@ -1385,19 +1602,33 @@ el('bArchRefresh').addEventListener('click', refreshArchive);
 el('archModalX').addEventListener('click', closeModal);
 el('archModal').addEventListener('click', (ev) => { if(ev.target === el('archModal')) closeModal(); });
 
+/* STRATO D · wiring strumenti database + filtri live */
+el('bArchExport').addEventListener('click', exportAll);
+el('bArchImport').addEventListener('click', () => el('archImportFile').click());
+el('archImportFile').addEventListener('change', (ev) => {
+  const f = ev.target.files && ev.target.files[0];
+  if(f) importAll(f);
+  ev.target.value = '';                                  // permette di re-importare lo stesso file
+});
+el('bArchClear').addEventListener('click', clearDb);
+['fltMem','fltKind'].forEach((id) => { const e = el(id); if(e) e.addEventListener('change', applyArchFilters); });
+{ const q = el('fltQ'); if(q) q.addEventListener('input', applyArchFilters); }
+
 (async function boot(){
   try{
     const st = await ensureInit();
+    renderDbStat(st);                                    // STRATO D · stato motori nel pannello
     if(!st.persistent){
       // Non isolati / niente OPFS: il banco funziona, ma senza persistenza.
       showBanner('<b>Persistenza OFF.</b> Per salvare gli esperimenti apri il lab con ' +
                  '<b>avvia-lab.bat</b> (doppio click). Ora il banco funziona lo stesso, ma i dati ' +
                  'NON sopravvivono alla chiusura (SQLite in-memory).');
     }
-    await refreshArchive();
+    await refreshArchive();                              // popola anche «esperimenti» nello stato
     archStatus(st.persistent ? 'Database pronto (persistente).' : 'Database in-memory (non persistente).');
   }catch(err){
     // Import/init falliti (tipico: aperto senza lanciatore). Banco intatto.
+    const box = el('dbStat'); if(box) box.innerHTML = '<span class="no">database non disponibile</span>';
     showBanner('<b>Archivio non disponibile.</b> Apri il lab con <b>avvia-lab.bat</b> ' +
                '(doppio click) per la persistenza. Il banco resta pienamente utilizzabile. ' +
                '<span style="color:#8aa">(' + (err.message||err) + ')</span>');
@@ -1832,6 +2063,25 @@ elc('bAnlyMem').addEventListener('click', () => preset('mem'));
 elc('bAnlyNoise').addEventListener('click', () => preset('noise'));
 elc('bAnlyCsv').addEventListener('click', exportCsvC);
 elc('bAnlyJson').addEventListener('click', exportJsonC);
+
+/* =====================================================================
+   STRATO D · sincronizzazione col database (eventi dal modulo-ponte).
+   - «db-cleared»: dopo Svuota database → ricarico (tabelle OLAP vuote) e
+     azzero tabella/grafico, così il tavolo di analisi si svuota subito.
+   - «db-changed»: dopo Importa → invalido la cache, così la prossima
+     query/preset ricarica automaticamente i dati aggiornati.
+   ===================================================================== */
+window.addEventListener('voidlab:db-cleared', async () => {
+  duckLoaded = false; lastRows = null;
+  try{ await loadDuck(true); }catch(_e){}                 // runs_olap/metrics_olap ora vuote
+  renderTable([]); drawChart(null);
+  elc('anlyMeta').textContent = '';
+  anlyStatus('Database svuotato: analisi azzerata.');
+});
+window.addEventListener('voidlab:db-changed', () => {
+  duckLoaded = false;                                     // la prossima esecuzione ricarica i dati
+  anlyStatus('Dati importati: premi «Carica/aggiorna dati» o un\'analisi per aggiornare.');
+});
 
 /* Query di esempio pre-compilata nel box + grafico placeholder. */
 elc('anlySql').value = Q.esempio;
