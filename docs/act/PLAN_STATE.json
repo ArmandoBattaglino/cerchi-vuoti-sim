@@ -1,0 +1,17 @@
+{
+  "feature": "void-lab-completo",
+  "invocation": "/act --research-first ultracode (loop)",
+  "branch": "void-lab-full",
+  "scelta_utente": "due motori: SQLite (OLTP) + DuckDB (OLAP), tutto locale/offline, lanciatore COOP/COEP per OPFS",
+  "sections": [
+    { "id": "A", "name": "Fondazione dati locale", "status": "done" },
+    { "id": "B", "name": "Il lab scrive nel database", "status": "done" },
+    { "id": "C", "name": "Tavolo di analisi (DuckDB OLAP)", "status": "done" },
+    { "id": "D", "name": "Rifinitura + note + ponte", "status": "done" }
+  ],
+  "status": "done",
+  "launcher": "avvia-lab.bat (doppio click) / avvia-lab.py — header COOP/COEP, porta default 8777",
+  "verifica_finale": "Playwright via lanciatore: 4 strati verdi. Determinismo intatto, OPFS persistente, catena sim->SQLite->DuckDB->analisi->grafico funzionante, svuota/export/import ok.",
+  "note": "duckdb-eh.wasm ~34MB committato (offline per sempre). Il lab va aperto col lanciatore per la persistenza.",
+  "updated": "2026-07-14"
+}

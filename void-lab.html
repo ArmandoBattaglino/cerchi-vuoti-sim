@@ -1,0 +1,2089 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Void Lab — banco A/B sulle politiche di memoria</title>
+<style>
+  /* ---- tema fosforo verde, coerente con arena-vuoto.html / modello-vuoto.html ---- */
+  :root{ --bg:#0a0e12; --panel:#111820; --dim:#5b6b78; --accent:#5ee0c0; --org:#ffb14e;
+         --blue:#7fd4ff; --line:#1c2833; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:#dfe8ee;
+        font:12px/1.5 Consolas, Menlo, "Cascadia Mono", monospace; }
+  h1{ font-size:15px; margin:14px 16px 4px; color:var(--accent); font-weight:600; }
+  .sub{ margin:0 16px 12px; color:var(--dim); font-size:11px; max-width:980px; }
+  .wrap{ display:flex; gap:14px; padding:0 16px 24px; align-items:flex-start; flex-wrap:wrap; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px; }
+  .lab{ color:var(--dim); font-size:10px; margin-bottom:6px; text-transform:uppercase; letter-spacing:.4px; }
+  canvas{ display:block; border-radius:8px; background:#000; }
+  canvas#arena{ width:648px; height:396px; image-rendering:auto; }
+  .ctrl{ width:300px; }
+  .row{ display:flex; align-items:center; justify-content:space-between; margin:6px 0; gap:8px; }
+  .row span{ color:#aebcc6; }
+  input[type=number], select, textarea{
+    background:#0b1116; color:#cfe8e0; border:1px solid var(--line); border-radius:6px;
+    padding:4px 6px; font:12px Consolas,Menlo,monospace; }
+  input[type=number]{ width:88px; text-align:right; }
+  select{ min-width:110px; }
+  textarea{ width:100%; height:96px; resize:vertical; font-size:10px; }
+  button{ background:#17222c; color:#dfe8ee; border:1px solid #26333f; border-radius:7px;
+          padding:6px 9px; cursor:pointer; font:12px Consolas,Menlo,monospace; }
+  button:hover{ border-color:var(--accent); }
+  button.primary{ background:var(--accent); color:#04120e; border-color:var(--accent); font-weight:700; }
+  .btns{ display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+  .btns button{ flex:1 1 30%; }
+  table{ border-collapse:collapse; width:100%; font-size:12px; margin:4px 0 10px; }
+  th,td{ text-align:right; padding:4px 8px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; }
+  th{ color:var(--dim); font-weight:500; text-transform:uppercase; font-size:10px; letter-spacing:.3px; }
+  td.k{ text-align:left; color:#aebcc6; }
+  .colA{ color:var(--accent); } .colB{ color:var(--org); }
+  .note{ color:var(--dim); font-size:10px; margin-top:8px; line-height:1.5; }
+  #readout{ color:var(--dim); font-size:11px; margin-top:6px; min-height:30px; white-space:pre; }
+  #verdict{ margin:4px 0 8px; font-size:12px; color:#dfe8ee; min-height:16px; }
+  #testOut{ margin:6px 0; font-size:12px; min-height:16px; }
+  #status{ color:var(--blue); font-size:11px; min-height:14px; margin-top:4px; }
+  .pass{ color:var(--accent); font-weight:700; } .fail{ color:#ff7a9c; font-weight:700; }
+  #plotSummary{ color:var(--dim); font-size:11px; margin-top:6px; min-height:14px; }
+  code{ color:var(--blue); }
+
+  /* ---- STRATO B: ponte database + pannello Archivio (stesso tema fosforo) ---- */
+  #dbBanner{ display:none; margin:10px 16px 0; padding:8px 12px; border-radius:8px;
+             background:#2a1c10; border:1px solid #ffb14e55; color:#ffcf94; font-size:11px; line-height:1.5; }
+  #dbBanner.on{ display:block; }
+  #dbBanner b{ color:var(--org); }
+  .arch{ min-width:100%; flex:1 1 100%; }
+  .arch .head{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
+  #archCount{ color:var(--accent); font-weight:700; text-transform:none; letter-spacing:0; }
+  #archStatus{ color:var(--blue); font-size:11px; min-height:14px; }
+  .tblScroll{ overflow:auto; max-height:360px; border:1px solid var(--line); border-radius:8px; }
+  .arch table{ font-size:11px; margin:0; }
+  .arch th{ position:sticky; top:0; background:var(--panel); z-index:1; }
+  .arch th, .arch td{ text-align:left; white-space:nowrap; }
+  .arch td.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  .arch td.memA{ color:var(--accent); font-weight:700; }
+  .arch td.memB{ color:var(--org);   font-weight:700; }
+  .arch .acts{ white-space:nowrap; }
+  .arch .acts button{ padding:3px 6px; font-size:10px; margin-right:3px; }
+  .arch input.note{ width:130px; font-size:10px; padding:3px 5px; text-align:left; }
+  .arch .empty{ color:var(--dim); padding:10px 6px; text-align:center; }
+  #archModal{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.62); z-index:50;
+              align-items:center; justify-content:center; }
+  #archModal.on{ display:flex; }
+  #archModal .box{ background:var(--panel); border:1px solid var(--accent); border-radius:10px;
+                   max-width:660px; width:90%; max-height:82vh; overflow:auto; padding:14px; }
+  #archModal pre{ white-space:pre-wrap; word-break:break-word; color:#cfe8e0; font-size:11px;
+                  background:#0b1116; border:1px solid var(--line); border-radius:6px; padding:8px; margin:4px 0; }
+  #archModal .x{ float:right; }
+
+  /* ---- STRATO D · RIFINITURA: istruzioni, stato DB, filtri, strumenti database ---- */
+  .howto{ margin:10px 16px 0; max-width:100%; border-color:#1f3a34; }
+  .howto .steps{ color:#aebcc6; font-size:11px; line-height:1.7; margin:4px 0; }
+  .howto .steps b{ color:var(--accent); }
+  .howto .steps .warn{ color:var(--org); }
+  #dbStat{ margin-top:8px; display:flex; flex-wrap:wrap; gap:6px 16px; font-size:11px; color:var(--dim);
+           border-top:1px solid var(--line); padding-top:8px; }
+  #dbStat .kv b{ color:var(--blue); font-weight:600; }
+  #dbStat .ok{ color:var(--accent); font-weight:700; }
+  #dbStat .no{ color:#ff7a9c; font-weight:700; }
+  /* titoli di sezione: separano visivamente Banco / Archivio / Analisi */
+  .sect{ color:var(--accent); font-size:13px; font-weight:600; margin:22px 16px 0;
+         border-top:1px solid var(--line); padding-top:14px; }
+  .sect small{ color:var(--dim); font-weight:400; font-size:11px; margin-left:8px; }
+  /* strumenti database (esporta / importa / svuota) */
+  .dbTools{ display:flex; flex-wrap:wrap; gap:6px; margin:2px 0 8px; }
+  button.danger{ border-color:#5a2230; color:#ff9db2; }
+  button.danger:hover{ border-color:#ff7a9c; }
+  /* filtri live dell'archivio */
+  .archFilters{ display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; margin:0 0 8px;
+                padding:8px 10px; background:#0b1116; border:1px solid var(--line); border-radius:8px; }
+  .archFilters label{ color:#aebcc6; display:flex; align-items:center; gap:6px; }
+  .archFilters input.search{ width:180px; text-align:left; }
+  .archFilters .clr{ color:var(--dim); font-size:10px; margin-left:auto; }
+
+  /* ---- STRATO C · TAVOLO DI ANALISI (motore DuckDB, stesso tema fosforo) ---- */
+  .anly{ min-width:100%; flex:1 1 100%; }
+  .anly .head{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+  #anlyLoadInfo{ color:var(--accent); font-weight:700; }
+  #anlyStatus{ color:var(--blue); font-size:11px; min-height:14px; }
+  #anlyErr{ color:#ff7a9c; font-size:11px; min-height:14px; margin:4px 0; white-space:pre-wrap; word-break:break-word; }
+  .anly .presets{ display:flex; flex-wrap:wrap; gap:6px; margin:6px 0; }
+  .anly .presets button{ flex:1 1 22%; font-size:11px; }
+  #anlySql{ width:100%; height:150px; resize:vertical; font-size:11px; line-height:1.45;
+            color:#cfe8e0; background:#0b1116; }
+  .anly .exec{ display:flex; gap:8px; align-items:center; margin:6px 0; flex-wrap:wrap; }
+  #anlyMeta{ color:var(--dim); font-size:11px; }
+  #anlyResScroll{ overflow:auto; max-height:340px; border:1px solid var(--line); border-radius:8px; margin-top:6px; }
+  .anly table{ font-size:11px; margin:0; }
+  .anly th{ position:sticky; top:0; background:var(--panel); z-index:1; text-align:left; white-space:nowrap; }
+  .anly td{ text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .anly td.s{ text-align:left; color:#aebcc6; }
+  .anly .empty{ color:var(--dim); padding:10px 6px; text-align:center; }
+  #anlyChartWrap{ margin-top:10px; }
+  canvas#anlyChart{ width:100%; max-width:620px; height:300px; }
+  #anlyChartCap{ color:var(--dim); font-size:11px; margin-top:4px; min-height:14px; }
+</style>
+
+<h1>Void Lab — due politiche di memoria, stesso agente, stesso mondo</h1>
+<p class="sub">
+  <b>Ipotesi:</b> una memoria relazionale <b class="colA">A = novelty-gated</b> (scrive solo novità strutturata, cap 200)
+  dà più potere gestionale con meno storage di una <b class="colB">B = store-all</b> (scrive ogni percetto).
+  A e B differiscono in <b>una cosa sola</b>: cosa entra in memoria. La sorpresa è calcolata con la stessa
+  identica funzione. Verdetto numerico appaiato, deterministico (mulberry32), falsificabile.
+</p>
+
+<!-- STRATO B · banner mostrato dal modulo-ponte se manca la persistenza OPFS -->
+<div id="dbBanner"></div>
+
+<!-- ============ STRATO D · «COME SI USA» + STATO DATABASE (sempre visibile) ============ -->
+<div class="card howto" id="howto">
+  <div class="lab">Come si usa</div>
+  <div class="steps">
+    Apri il lab con <b>avvia-lab.bat</b> (doppio click): serve a dare al browser la <b>persistenza vera</b>
+    (OPFS) così gli esperimenti restano salvati <b>per sempre</b>. Se apri il file con un doppio click diretto,
+    il banco funziona lo stesso ma <span class="warn">i dati NON sopravvivono</span> alla chiusura (SQLite in-memory).
+  </div>
+  <div class="steps">
+    · <b>Banco</b>: imposti il confronto A/B e premi Run / Sweep — motore deterministico, stessi numeri.<br>
+    · <b>Archivio</b>: ogni Run/Sweep finisce nel database, con Rifai / Apri / Elimina / Note, filtri, esporta e importa.<br>
+    · <b>Analisi</b>: query SQL analitiche (DuckDB) su tutti gli esperimenti salvati.
+  </div>
+  <div id="dbStat"><span class="kv">database: in avvio…</span></div>
+</div>
+
+<div class="wrap">
+  <!-- ============ (1) ARENA VIVA ============ -->
+  <div class="card">
+    <div class="lab">Arena · campo con vuoti · <span class="colA">A teal</span> / <span class="colB">B arancio</span> · scia + goal ⊕</div>
+    <canvas id="arena" width="648" height="396"></canvas>
+    <div id="readout">pronto.</div>
+  </div>
+
+  <!-- ============ (2) CONFIG ============ -->
+  <div class="ctrl card">
+    <div class="lab">Config esperimento</div>
+    <div class="row"><span>seed</span><input id="inSeed" type="number" value="1337" step="1"></div>
+    <div class="row"><span>innateSeed</span><input id="inInnate" type="number" value="1337" step="1"></div>
+    <div class="row"><span>rumore percettivo</span><input id="inNoise" type="number" value="0.03" step="0.005" min="0" max="0.5"></div>
+    <div class="row"><span>goalPull (tiro al goal · abbassa per far contare la memoria)</span><input id="inGoal" type="number" value="0.95" step="0.05" min="0" max="1"></div>
+    <div class="row"><span>maxSteps</span><input id="inSteps" type="number" value="4000" step="100" min="10"></div>
+    <div class="row"><span>blobs (vuoti)</span><input id="inBlobs" type="number" value="7" step="1" min="1" max="30"></div>
+    <div class="row"><span>mondo dinamico</span><input id="inDyn" type="checkbox"></div>
+    <div class="row"><span>memoria</span>
+      <select id="inMem"><option value="Pair" selected>Pair (A vs B)</option><option value="A">A — novelty-gated</option><option value="B">B — store-all</option></select></div>
+
+    <div class="lab" style="margin-top:10px">Sweep</div>
+    <div class="row"><span>parametro</span>
+      <select id="swParam">
+        <option value="noise" selected>noise (rumore)</option>
+        <option value="goalPull">goalPull (tiro al goal · abbassa per far contare la memoria)</option>
+        <option value="blobs">blobs (mondo)</option>
+        <option value="seed">seed</option>
+        <option value="maxSteps">maxSteps</option>
+      </select></div>
+    <div class="row"><span>da</span><input id="swFrom" type="number" value="0" step="0.01"></div>
+    <div class="row"><span>a</span><input id="swTo" type="number" value="0.12" step="0.01"></div>
+    <div class="row"><span>punti</span><input id="swSteps" type="number" value="10" step="1" min="2" max="60"></div>
+
+    <div class="btns">
+      <button id="bRun" class="primary">Run</button>
+      <button id="bSweep">Sweep</button>
+      <button id="bTest">Test canonico</button>
+      <button id="bSave">Save</button>
+      <button id="bLoad">Load</button>
+      <button id="bCsv">Export CSV</button>
+      <button id="bPng">Export PNG</button>
+    </div>
+    <div id="status"></div>
+
+    <div class="lab" style="margin-top:8px">Esperimento JSON (save/load)</div>
+    <textarea id="cfgText" spellcheck="false"></textarea>
+    <input id="cfgFile" type="file" accept=".json,application/json" style="font-size:10px; width:100%; margin-top:4px">
+    <div class="note">
+      Headless: <code>window.__runExperiment(cfg)</code> · <code>window.__pair(cfg)</code> · <code>window.__sweep(cfg)</code>.
+      Stesso cfg → stessi numeri. Nessun Math.random nel core.
+    </div>
+  </div>
+
+  <!-- ============ (3) RISULTATI ============ -->
+  <div class="card" style="min-width:560px; flex:1">
+    <div class="lab">Verdetto appaiato (stesso seed, stesso mondo, stessa forma innata)</div>
+    <table>
+      <thead><tr><th class="k">metrica</th><th class="colA">A novelty-gated</th><th class="colB">B store-all</th><th>Δ (B−A)</th></tr></thead>
+      <tbody id="tbody">
+        <tr><td class="k">passi al goal</td><td id="tAs">—</td><td id="tBs">—</td><td id="tDs">—</td></tr>
+        <tr><td class="k">|memoria|</td><td id="tAm">—</td><td id="tBm">—</td><td id="tDm">—</td></tr>
+        <tr><td class="k">raggiunto</td><td id="tAr">—</td><td id="tBr">—</td><td id="tDr"></td></tr>
+        <tr><td class="k">distanza finale</td><td id="tAd">—</td><td id="tBd">—</td><td id="tDd"></td></tr>
+      </tbody>
+    </table>
+    <div id="verdict"></div>
+    <div id="testOut"></div>
+    <div class="lab" style="margin-top:8px">Plot sweep · <span class="colA">A</span> vs <span class="colB">B</span></div>
+    <div class="row" style="justify-content:flex-start"><span>metrica</span>
+      <select id="metricSel"><option value="steps" selected>steps (passi al goal)</option><option value="memSize">memSize (|memoria|)</option></select></div>
+    <canvas id="plot" width="540" height="320"></canvas>
+    <div id="plotSummary"></div>
+  </div>
+</div>
+
+<!-- ============ (4) STRATO B · PANNELLO ARCHIVIO (alimentato dal modulo-ponte) ============ -->
+<h2 class="sect">Archivio &amp; database <small>tutti gli esperimenti salvati · filtri · esporta / importa / svuota</small></h2>
+<div class="wrap">
+  <div class="card arch">
+    <div class="head">
+      <div class="lab" style="margin:0">Archivio esperimenti · <span id="archCount">esperimenti salvati: 0</span></div>
+      <div style="display:flex; gap:8px; align-items:center">
+        <span id="archStatus"></span>
+        <button id="bArchRefresh">Aggiorna</button>
+      </div>
+    </div>
+
+    <!-- STRATO D · strumenti database: il PONTE per l'analisi esterna + reset pulito -->
+    <div class="dbTools">
+      <button id="bArchExport" title="Scarica un unico JSON con TUTTI gli esperimenti (per passarlo a un assistente e farci analisi profonda)">Esporta tutto</button>
+      <button id="bArchImport" title="Carica un JSON esportato e re-inserisce i run nel database, senza duplicati grossolani">Importa</button>
+      <input id="archImportFile" type="file" accept=".json,application/json" style="display:none">
+      <button id="bArchClear" class="danger" title="Cancella TUTTI gli esperimenti/run/metriche per ripartire puliti">Svuota database</button>
+    </div>
+
+    <!-- STRATO D · filtri live (lato JS, sui run già caricati) -->
+    <div class="archFilters">
+      <label>memoria
+        <select id="fltMem"><option value="">tutti</option><option value="A">A</option><option value="B">B</option></select>
+      </label>
+      <label>tipo
+        <select id="fltKind"><option value="">tutti</option><option value="pair">pair</option><option value="sweep">sweep</option><option value="run">run</option></select>
+      </label>
+      <label>cerca
+        <input id="fltQ" class="search" type="text" placeholder="tag o note…" spellcheck="false">
+      </label>
+      <span id="archFilterInfo" class="clr"></span>
+    </div>
+
+    <div class="tblScroll">
+      <table>
+        <thead><tr>
+          <th>data</th><th>tipo</th><th>mem</th>
+          <th class="num">seed</th><th class="num">goalPull</th><th class="num">noise</th>
+          <th class="num">passi</th><th class="num">|mem|</th><th>raggiunto</th>
+          <th>note</th><th>azioni</th>
+        </tr></thead>
+        <tbody id="archBody"><tr><td class="empty" colspan="11">nessun esperimento salvato.</td></tr></tbody>
+      </table>
+    </div>
+    <div class="note">
+      Ogni <b>Run in modalità Pair</b> salva due run (A e B); ogni <b>Sweep</b> salva ogni punto (A e B) con il valore spazzato.
+      <b>RIFAI</b> ricarica il config nel banco e ri-esegue (deterministico, stessi numeri, run singola A/B → nessun doppione).
+      <b>APRI</b> mostra config JSON + metriche + note. <b>ELIMINA</b> cancella dal database. La <b>nota</b> è modificabile e si salva nel database.
+    </div>
+  </div>
+</div>
+
+<!-- ============ (5) STRATO C · TAVOLO DI ANALISI (motore DuckDB / OLAP) ============ -->
+<h2 class="sect">Tavolo di analisi <small>query SQL analitiche (DuckDB / OLAP) su tutti gli esperimenti</small></h2>
+<div class="wrap">
+  <div class="card anly">
+    <div class="head">
+      <div class="lab" style="margin:0">Tavolo di analisi · query SQL analitiche su DuckDB (OLAP) · <span id="anlyLoadInfo">non caricato</span></div>
+      <div style="display:flex; gap:8px; align-items:center">
+        <span id="anlyStatus"></span>
+        <button id="bAnlyLoad" class="primary">Carica/aggiorna dati</button>
+      </div>
+    </div>
+
+    <div class="lab" style="margin-top:4px">Analisi pronte (riempiono il box SQL ed eseguono)</div>
+    <div class="presets">
+      <button id="bAnlyWin">A vs B: chi vince per goalPull</button>
+      <button id="bAnlySteps">Passi medi per tipo di memoria</button>
+      <button id="bAnlyMem">Memoria usata per tipo</button>
+      <button id="bAnlyNoise">Tasso di successo per rumore</button>
+    </div>
+
+    <div class="lab" style="margin-top:6px">Box SQL libero (tabelle: <code>runs_olap</code>, <code>metrics_olap</code>)</div>
+    <textarea id="anlySql" spellcheck="false"></textarea>
+    <div class="exec">
+      <button id="bAnlyRun" class="primary">Esegui</button>
+      <button id="bAnlyCsv">Export CSV</button>
+      <button id="bAnlyJson">Export JSON</button>
+      <span id="anlyMeta"></span>
+    </div>
+    <div id="anlyErr"></div>
+
+    <div id="anlyResScroll">
+      <table>
+        <thead id="anlyHead"></thead>
+        <tbody id="anlyBody"><tr><td class="empty">nessun risultato: premi «Carica/aggiorna dati», poi «Esegui» o un'analisi pronta.</td></tr></tbody>
+      </table>
+    </div>
+
+    <div id="anlyChartWrap">
+      <div class="lab" style="margin-top:8px">Grafico · <span class="colA">A teal</span> / <span class="colB">B arancio</span></div>
+      <canvas id="anlyChart" width="620" height="300"></canvas>
+      <div id="anlyChartCap"></div>
+    </div>
+
+    <div class="note">
+      Il motore è <b>DuckDB-WASM</b> (analitico, tipo-ClickHouse). <b>Carica/aggiorna dati</b> copia i run salvati da SQLite
+      dentro DuckDB (<code>runs_olap</code> / <code>metrics_olap</code>): ri-premi dopo nuovi Run/Sweep. Le metriche stanno in
+      <code>metrics_olap</code> come coppie <code>key/value</code> (steps, memSize, reached, finalDist); i parametri
+      (mem A/B, goalPull, noise, seed) si estraggono dai <b>tag</b> del run con <code>regexp_extract</code>. Errori SQL mostrati
+      in chiaro senza rompere la pagina.
+    </div>
+  </div>
+</div>
+
+<!-- overlay dettaglio run (APRI) -->
+<div id="archModal"><div class="box"><button class="x" id="archModalX">chiudi</button><div id="archModalBody"></div></div></div>
+
+<script>
+"use strict";
+(function(){
+/* =====================================================================
+   VOID LAB v1
+   CORE portato FEDELMENTE da arena-vuoto.html (stessa matematica, stesse
+   costanti). L'unico cambiamento strutturale: la memoria dell'agente è
+   estratta dietro l'interfaccia makeMemory(kind) — l'agente parla SOLO
+   con agent.mem.write(...) e agent.mem.surprise(...).
+   Determinismo assoluto: mulberry32 seedato; nel core niente Math.random
+   né Date.now. Il rumore percettivo è ri-seedato per (seed, step): è una
+   funzione pura, identica per A e B allo stesso passo.
+   ===================================================================== */
+
+/* ---------- RNG seedato (identico all'arena) ---------- */
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function rr(rng,a,b){ return a + (b-a)*rng(); }
+
+/* ---------- utilità numeriche (identiche all'arena) ---------- */
+function clamp(v,lo,hi){ return v<lo?lo:(v>hi?hi:v); }
+function safe(v,fb){ return Number.isFinite(v)?v:fb; }
+function saturate(v){ return v<0?0:(v>1?1:v); }
+function quantile(arr,q){
+  if(!arr || arr.length===0) return 0;
+  const s=Array.prototype.slice.call(arr).sort(function(a,b){return a-b;});
+  const idx=clamp(Math.round((s.length-1)*q),0,s.length-1);
+  return s[idx];
+}
+
+/* ---------- costanti del metabolismo (valori IDENTICI all'arena) ---------- */
+const M=16, L=12;                      // patch a girasole 16 punti -> percetto 12
+const SREF=1.4;                        // scala distanza -> sorpresa [0,1]
+const WRITE_S=0.13;                    // soglia sorpresa del gate di A
+const VAR_THR=0.0045;                  // soglia struttura (rumore piatto escluso)
+const MEMCAP_A=200;                    // cap memoria A (bounded, come arena)
+const MEMCAP_B=20000;                  // cap TECNICO di B: solo anti-OOM, non un gate
+const NDIR=8, PROBE=6.0, DEAD=0.06;
+const INERTIA=0.62, CTRL_K=3.4, ACC=0.36, VMAX=0.95;
+const CUR=0.50, GOALG=0.95, REACH=3.5;
+const S_MIN=0.15, S_MAX=0.70;
+const REFF_BASE=0.7, REFF_GAIN=0.6, REFF_REF=0.30;
+const FAM_RATE=0.01, VOID_SOFT=0.30;
+const CGW=30, CGH=18, CGN=CGW*CGH;     // griglia copertura
+const GOAL_EPS=8;                      // criterio del RUNNER: goal se dist < 8
+
+/* offset base a girasole (angolo aureo) — identico all'arena */
+const baseOff=[];
+for(let i=0;i<M;i++){
+  const ang=i*2.399963229728653;
+  const rad=Math.sqrt((i+0.5)/M);
+  baseOff.push([Math.cos(ang)*rad, Math.sin(ang)*rad]);
+}
+
+/* ---------- distanza / sorpresa (funzioni identiche all'arena) ---------- */
+function dist(p,q){ let s=0; for(let l=0;l<L;l++){ const d=p[l]-q[l]; s+=d*d; } return Math.sqrt(s); }
+function nearestDist(mem,p){
+  if(mem.length===0) return Infinity;
+  let best=Infinity;
+  for(let i=0;i<mem.length;i++){ const d=dist(mem[i].percept,p); if(d<best) best=d; }
+  return best;
+}
+function surpriseFrom(minDist){
+  if(!Number.isFinite(minDist)) return 1.0;   // memoria vuota => novità massima
+  return clamp(minDist/SREF,0,1);
+}
+function structGate(variance){ return saturate(variance/VAR_THR); }
+
+/* =====================================================================
+   MODULO MEMORIA — il cuore dell'esperimento.
+   makeMemory(kind) -> { write, surprise, size, reset }.
+   A e B differiscono SOLO nel gate di write(): che cosa entra in memoria.
+   surprise() è la STESSA IDENTICA formula per entrambe:
+       nearestDist(items, percept)/SREF * structGate(variance)
+   Cambia solo il CONTENUTO di items su cui gira nearestDist.
+   ===================================================================== */
+function makeMemory(kind){
+  if(kind!=='A' && kind!=='B') throw new Error('makeMemory: kind deve essere "A" o "B"');
+  const cap = kind==='A' ? MEMCAP_A : MEMCAP_B;
+  let items=[];
+  return {
+    kind: kind,
+    // A: novelty-gated (porting fedele dell'arena) — scrive SOLO se
+    //    sorpresa > 0.13 E varianza > 0.0045, cap 200.
+    // B: store-all — scrive OGNI percetto, nessun gate, cap tecnico 20000.
+    write: function(percept, surprise, variance, x, y){
+      if(kind==='A' && !(surprise>WRITE_S && variance>VAR_THR)) return false;
+      if(items.length>=cap) return false;
+      items.push({percept:percept, x:x, y:y, energy:surprise});
+      return true;
+    },
+    // IDENTICA per A e B — non toccare, non specializzare.
+    surprise: function(percept, variance){
+      return surpriseFrom(nearestDist(items,percept)) * structGate(variance);
+    },
+    size: function(){ return items.length; },
+    reset: function(){ items=[]; }
+  };
+}
+
+/* =====================================================================
+   CONFIG — normalizzazione con default documentati (dalla spec v1)
+   ===================================================================== */
+function defaultCfg(){
+  return {
+    seed: 1337,
+    world: { size:[180,110], blobs:7, dynamic:false },
+    agent: { innateSeed:1337, goal:true, memory:'A' },
+    run:   { maxSteps:4000, noise:0.03 },
+    sweep: { param:'noise', from:0, to:0.12, steps:10 }
+  };
+}
+function cloneCfg(c){ return JSON.parse(JSON.stringify(c)); }
+function normCfg(c){
+  const d=defaultCfg(); c=c||{};
+  const w=c.world||{}, a=c.agent||{}, r=c.run||{}, s=c.sweep||{};
+  return {
+    seed: Number.isFinite(+c.seed) ? (+c.seed|0) : d.seed,
+    world: {
+      size: (Array.isArray(w.size)&&w.size.length===2) ? [w.size[0]|0, w.size[1]|0] : d.world.size.slice(),
+      blobs: Number.isFinite(+w.blobs) ? Math.max(1,+w.blobs|0) : d.world.blobs,
+      dynamic: !!w.dynamic
+    },
+    agent: {
+      innateSeed: Number.isFinite(+a.innateSeed) ? (+a.innateSeed|0)
+                : (Number.isFinite(+c.seed) ? (+c.seed|0) : d.agent.innateSeed),
+      goal: (a.goal===undefined) ? true : a.goal,   // true oppure [x,y] espliciti
+      goalPull: Number.isFinite(+a.goalPull) ? Math.max(0,+a.goalPull) : GOALG, // forza del tiro al goal
+      memory: (a.memory==='B'||a.memory==='Pair') ? a.memory : 'A'
+    },
+    run: {
+      maxSteps: Number.isFinite(+r.maxSteps) ? Math.max(1,+r.maxSteps|0) : d.run.maxSteps,
+      noise: Number.isFinite(+r.noise) ? Math.max(0,+r.noise) : d.run.noise
+    },
+    sweep: {
+      param: (['noise','goalPull','blobs','seed','maxSteps'].indexOf(s.param)>=0) ? s.param : d.sweep.param,
+      from: Number.isFinite(+s.from) ? +s.from : d.sweep.from,
+      to:   Number.isFinite(+s.to)   ? +s.to   : d.sweep.to,
+      steps:Number.isFinite(+s.steps)? Math.max(2, Math.min(60, +s.steps|0)) : d.sweep.steps
+    }
+  };
+}
+
+/* =====================================================================
+   MONDO — campo scalare con blob gaussiani (formule identiche all'arena).
+   Il seme dei blob deriva dal seed dell'esperimento: stesso seed ->
+   stesso mondo, sempre. (seed+9021: 9021 era il seme fisso dell'arena.)
+   ===================================================================== */
+function makeWorld(cfg){
+  const W=cfg.world.size[0], H=cfg.world.size[1];
+  const world={ W:W, H:H, field:new Float32Array(W*H), blobs:[], dynamic:cfg.world.dynamic };
+  const brng=mulberry32((cfg.seed+9021)|0);
+  for(let i=0;i<cfg.world.blobs;i++){
+    world.blobs.push({
+      x: 0.1*W + brng()*0.8*W, y: 0.1*H + brng()*0.8*H,
+      r: 9 + brng()*15,
+      amp: 0.55 + brng()*0.5,
+      vx: (brng()-0.5)*0.05, vy:(brng()-0.5)*0.05
+    });
+  }
+  rasterizeField(world);
+  return world;
+}
+function rasterizeField(world){
+  const W=world.W, H=world.H, field=world.field, blobs=world.blobs;
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      let v=0;
+      for(let b=0;b<blobs.length;b++){
+        const bb=blobs[b];
+        const dx=x-bb.x, dy=y-bb.y;
+        v += bb.amp*Math.exp(-(dx*dx+dy*dy)/(2*bb.r*bb.r));
+      }
+      field[y*W+x]=clamp(v,0,1);
+    }
+  }
+}
+function driftField(world){
+  const W=world.W, H=world.H;
+  for(let i=0;i<world.blobs.length;i++){
+    const b=world.blobs[i];
+    b.x=clamp(b.x+b.vx,0,W); b.y=clamp(b.y+b.vy,0,H);
+    if(b.x<=0||b.x>=W) b.vx=-b.vx;
+    if(b.y<=0||b.y>=H) b.vy=-b.vy;
+  }
+  rasterizeField(world);
+}
+function sampleField(world,x,y){
+  const W=world.W, H=world.H, field=world.field;
+  x=clamp(x,0,W-1.001); y=clamp(y,0,H-1.001);
+  const x0=x|0, y0=y|0, fx=x-x0, fy=y-y0;
+  const i=y0*W+x0;
+  const a=field[i], b=field[i+1], c=field[i+W], d=field[i+W+1];
+  return a*(1-fx)*(1-fy)+b*fx*(1-fy)+c*(1-fx)*fy+d*fx*fy;
+}
+
+/* =====================================================================
+   FORMA INNATA + PERCEZIONE (identiche all'arena) + rumore percettivo.
+   Il rumore (cfg.run.noise) perturba i campioni grezzi del patch, con un
+   RNG ri-seedato per passo da (seed, step): stessa sequenza per A e B.
+   ===================================================================== */
+function makeInnate(rng){
+  const R=rr(rng,5,13);
+  const gain=rr(rng,0.6,1.6);
+  const Wlens=new Float32Array(L*M);
+  for(let k=0;k<L*M;k++) Wlens[k]=(rng()*2-1);
+  const wphase=rr(rng,0,Math.PI*2);
+  const wrate=rr(rng,0.010,0.030);
+  return {R:R,gain:gain,Wlens:Wlens,wphase:wphase,wrate:wrate};
+}
+const _perc=new Float32Array(L);       // buffer condiviso (single-thread, no GC)
+function perceive(sim,a,x,y){
+  const raw=a._raw;
+  let mean=0;
+  for(let m=0;m<M;m++){
+    const ox=baseOff[m][0]*a.R, oy=baseOff[m][1]*a.R;
+    let s=sampleField(sim.world, x+ox, y+oy);
+    // rumore percettivo deterministico (funzione di seed+step, non della traiettoria)
+    if(sim.nrng) s=clamp(s+(sim.nrng()*2-1)*sim.noise, 0, 1);
+    raw[m]=s; mean+=s;
+  }
+  mean/=M;
+  let varr=0;
+  for(let m=0;m<M;m++){ const d=raw[m]-mean; varr+=d*d; }
+  varr/=M;
+  let norm=0;
+  for(let l=0;l<L;l++){
+    let acc=0; const base=l*M;
+    for(let m=0;m<M;m++) acc+=a.Wlens[base+m]*(raw[m]-mean);
+    const v=Math.tanh(a.gain*acc);
+    _perc[l]=v; norm+=v*v;
+  }
+  norm=Math.sqrt(norm);
+  const out=new Float32Array(L);
+  if(norm>1e-6){ for(let l=0;l<L;l++) out[l]=_perc[l]/norm; }
+  return {percept:out, variance:varr};
+}
+
+/* =====================================================================
+   SIM — fabbrica di simulazioni ISOLATE: ogni run ha mondo+agente+rng
+   propri, così runExperiment è puro e riproducibile.
+   ===================================================================== */
+function makeSim(cfg){
+  cfg=normCfg(cfg);
+  const world=makeWorld(cfg);
+  const sim={ cfg:cfg, world:world, step:0, noise:cfg.run.noise, nrng:null, agents:[] };
+  const a=makeAgent(sim, cfg.agent.memory==='B'?'B':'A');
+  sim.agent=a; sim.agents=[a];
+  return sim;
+}
+function makeAgent(sim, memKind){
+  const cfg=sim.cfg, W=sim.world.W, H=sim.world.H;
+  // TUTTA la casualità dell'agente (forma innata + spawn + goal) viene da
+  // mulberry32(innateSeed): A e B in pair condividono lo STESSO innateSeed
+  // quindi stessa forma, stessa posizione, stesso goal.
+  const arng=mulberry32(cfg.agent.innateSeed|0);
+  const inn=makeInnate(arng);
+  const a={
+    id:0, R:inn.R, gain:inn.gain, Wlens:inn.Wlens,
+    wphase:inn.wphase, wrate:inn.wrate,
+    _raw:new Float32Array(M),
+    px:rr(arng,W*0.15,W*0.85), py:rr(arng,H*0.15,H*0.85),
+    vx:0, vy:0, heading:rr(arng,0,Math.PI*2),
+    mem: makeMemory(memKind),          // <-- UNICA differenza tra A e B
+    surprise:1.0, setpoint:0.20, sHist:[],
+    percept:null, variance:0,
+    hasGoal:true, goalX:0, goalY:0, reached:false, distToGoal:0,
+    visited:new Uint8Array(CGN), coverCount:0,
+    trail:[], fam:{},
+    goalPull: cfg.agent.goalPull      // forza del tiro al goal (parametro, non piu costante GOALG)
+  };
+  if(Array.isArray(cfg.agent.goal) && cfg.agent.goal.length===2){
+    a.goalX=clamp(+cfg.agent.goal[0],0,W); a.goalY=clamp(+cfg.agent.goal[1],0,H);
+  } else {
+    a.goalX=rr(arng,W*0.1,W*0.9); a.goalY=rr(arng,H*0.1,H*0.9);
+  }
+  a.distToGoal=Math.hypot(a.goalX-a.px, a.goalY-a.py);
+  return a;
+}
+
+/* =====================================================================
+   UN PASSO DI SIMULAZIONE — porting fedele di stepAgent dell'arena.
+   Unico cambiamento: memoria SOLO via a.mem.surprise / a.mem.write
+   (il gate di scrittura vive DENTRO il modulo memoria, non qui).
+   ===================================================================== */
+function stepAgent(sim,a){
+  const W=sim.world.W, H=sim.world.H;
+  // 1) PERCEZIONE del patch locale
+  const p=perceive(sim,a,a.px,a.py);
+  a.percept=p.percept; a.variance=p.variance;
+
+  // 2) SORPRESA = novità vs memoria, modulata dalla struttura (structGate)
+  a.surprise=safe(a.mem.surprise(p.percept,p.variance),0);
+
+  // 2b) storia della sorpresa su patch strutturati (àncora del setpoint)
+  if(a.variance>VAR_THR){
+    a.sHist.push(a.surprise);
+    if(a.sHist.length>120) a.sHist.shift();
+  }
+
+  // 3) SCRITTURA: A filtra dentro write() (novelty-gate), B scrive tutto.
+  a.mem.write(a.percept, a.surprise, a.variance, a.px, a.py);
+
+  // 4) SETPOINT S* ancorato al quantile mobile del raggiungibile (come arena)
+  const target=(a.sHist.length>=8) ? clamp(quantile(a.sHist,0.65),S_MIN,S_MAX) : S_MIN;
+  a.setpoint=clamp(a.setpoint+(target-a.setpoint)*0.02, S_MIN, S_MAX);
+
+  // 5) VUOTO REGOLATORE a 8 direzioni: sorpresa stimata + struttura
+  let dirx=0, diry=0;
+  const cand=new Array(NDIR);
+  let maxS=-1,minS=2,maxV=-1,iMaxS=0,iMinS=0,iMaxV=0;
+  for(let i=0;i<NDIR;i++){
+    const ang=i/NDIR*Math.PI*2;
+    const pp=perceive(sim,a, a.px+Math.cos(ang)*PROBE, a.py+Math.sin(ang)*PROBE);
+    const s=a.mem.surprise(pp.percept, pp.variance);
+    cand[i]={ang:ang, s:s, v:pp.variance};
+    if(s>maxS){ maxS=s; iMaxS=i; }
+    if(s<minS){ minS=s; iMinS=i; }
+    if(pp.variance>maxV){ maxV=pp.variance; iMaxV=i; }
+  }
+  const spread=maxS-minS;
+  if(a.surprise > a.setpoint + DEAD){
+    // travolto -> verso sorpresa minima; da neonato verso la struttura
+    const k = spread>0.02 ? iMinS : iMaxV;
+    dirx=Math.cos(cand[k].ang); diry=Math.sin(cand[k].ang);
+  } else {
+    // regolatore proporzionale + fallback balistico nel vuoto piatto
+    const sp0=Math.hypot(a.vx,a.vy);
+    let hx=sp0>1e-4?a.vx/sp0:Math.cos(a.wphase);
+    let hy=sp0>1e-4?a.vy/sp0:Math.sin(a.wphase);
+    const curl=0.11*Math.sin(sim.step*a.wrate+a.wphase);
+    const cs=Math.cos(curl), sn=Math.sin(curl);
+    const rx=hx*cs-hy*sn, ry=hx*sn+hy*cs;
+    const err=a.setpoint-a.surprise;
+    const grad=clamp(spread/0.08,0,1);          // fiducia nel gradiente
+    const bias=clamp(CTRL_K*err,0,1)*grad;
+    const nx=Math.cos(cand[iMaxS].ang), ny=Math.sin(cand[iMaxS].ang);
+    dirx=rx*(1-bias)+nx*bias;
+    diry=ry*(1-bias)+ny*bias;
+  }
+
+  // 6) curiosità + tiro verso il goal (pull identico all'arena)
+  let ax=dirx*CUR, ay=diry*CUR;
+  if(a.hasGoal){
+    const gx=a.goalX-a.px, gy=a.goalY-a.py;
+    const gd=Math.hypot(gx,gy);
+    a.distToGoal=gd;
+    if(gd<REACH) a.reached=true;
+    const w=a.reached ? clamp(gd/20,0,1)*a.goalPull : a.goalPull;
+    if(gd>1e-4){ ax+=(gx/gd)*w; ay+=(gy/gd)*w; }
+  }
+  const dl=Math.hypot(ax,ay)||1; ax/=dl; ay/=dl;
+
+  // 7) integrazione con inerzia + clamp velocità (mai divergenza)
+  a.vx=a.vx*INERTIA+ax*ACC;
+  a.vy=a.vy*INERTIA+ay*ACC;
+  let sp=Math.hypot(a.vx,a.vy);
+  if(sp>VMAX){ a.vx*=VMAX/sp; a.vy*=VMAX/sp; }
+  a.vx=safe(a.vx,0); a.vy=safe(a.vy,0);
+  a.px+=a.vx; a.py+=a.vy;
+  if(a.px<0){ a.px=0; a.vx=-a.vx; } else if(a.px>W){ a.px=W; a.vx=-a.vx; }
+  if(a.py<0){ a.py=0; a.vy=-a.vy; } else if(a.py>H){ a.py=H; a.vy=-a.vy; }
+  a.px=clamp(safe(a.px,W/2),0,W); a.py=clamp(safe(a.py,H/2),0,H);
+  a.heading=Math.atan2(a.vy||1e-6, a.vx||1e-6);
+
+  // 8) copertura
+  const cx=clamp(a.px/W*CGW|0,0,CGW-1), cy=clamp(a.py/H*CGH|0,0,CGH-1);
+  const ci=cy*CGW+cx;
+  if(!a.visited[ci]){ a.visited[ci]=1; a.coverCount++; }
+
+  // 9) scia (solo estetica, bounded)
+  a.trail.push(a.px,a.py);
+  if(a.trail.length>720) a.trail.splice(0,a.trail.length-720);
+}
+
+/* raggio d'azione effettivo + vuoto sociale (porting fedele; con un solo
+   agente per sim la coppia i<j non scatta mai, ma il comportamento resta
+   identico all'arena se in futuro si aggiungono agenti) */
+function reff(a){ return a.R*(REFF_BASE+REFF_GAIN*clamp(a.surprise/REFF_REF,0,1)); }
+function applyMutualVoid(sim){
+  const agents=sim.agents, W=sim.world.W, H=sim.world.H;
+  for(let i=0;i<agents.length;i++) for(let j=i+1;j<agents.length;j++){
+    const a=agents[i], b=agents[j];
+    let dx=b.px-a.px, dy=b.py-a.py;
+    let d=Math.hypot(dx,dy); if(d<1e-4){ d=1e-4; dx=1e-4; }
+    const ra=reff(a), rb=reff(b);
+    const range=ra+rb;
+    if(d<range){
+      const ux=dx/d, uy=dy/d, overlap=range-d;
+      const fa=a.fam[b.id]||0, fb=b.fam[a.id]||0;
+      const sA=1-fa, sB=1-fb;                     // sorpresa sociale = 1 - familiarità
+      a.fam[b.id]=Math.min(1,fa+FAM_RATE);
+      b.fam[a.id]=Math.min(1,fb+FAM_RATE);
+      const pA=overlap*sA*VOID_SOFT, pB=overlap*sB*VOID_SOFT;
+      a.px=clamp(a.px-ux*pA,0,W-1); a.py=clamp(a.py-uy*pA,0,H-1);
+      b.px=clamp(b.px+ux*pB,0,W-1); b.py=clamp(b.py+uy*pB,0,H-1);
+      a.vx=safe(a.vx-ux*pA*0.5,0); a.vy=safe(a.vy-uy*pA*0.5,0);
+      b.vx=safe(b.vx+ux*pB*0.5,0); b.vy=safe(b.vy+uy*pB*0.5,0);
+    }
+  }
+}
+
+function simStep(sim){
+  // rumore ri-seedato per passo: dipende SOLO da (seed, step) -> A e B
+  // ricevono la stessa sequenza di perturbazioni allo stesso passo.
+  sim.nrng = sim.noise>0 ? mulberry32((sim.cfg.seed ^ Math.imul(sim.step+1, 0x9E3779B1))|0) : null;
+  if(sim.world.dynamic && (sim.step%4===0)) driftField(sim.world);
+  for(let i=0;i<sim.agents.length;i++) stepAgent(sim, sim.agents[i]);
+  applyMutualVoid(sim);
+  sim.step++;
+}
+
+/* =====================================================================
+   RUNNER + METRICHE (headless-friendly, JSON-serializzabili)
+   ===================================================================== */
+function round3(v){ return Math.round(v*1000)/1000; }
+
+// runExperiment: UN goal-agent, gira fino a goal (dist<GOAL_EPS) o maxSteps.
+// Deterministico: stesso cfg -> stesso risultato, sempre.
+function runExperiment(cfg){
+  const c=normCfg(cfg);
+  const sim=makeSim(c);
+  const a=sim.agent;
+  let reached=false;
+  for(let i=0;i<c.run.maxSteps;i++){
+    simStep(sim);
+    if(Math.hypot(a.goalX-a.px, a.goalY-a.py) < GOAL_EPS){ reached=true; break; }
+  }
+  return {
+    reached: reached,
+    steps: sim.step,
+    memSize: a.mem.size(),
+    finalDist: round3(Math.hypot(a.goalX-a.px, a.goalY-a.py))
+  };
+}
+
+// pair: STESSO seed, STESSO mondo, STESSA forma innata; cambia solo memory.
+function pair(cfg){
+  const base=normCfg(cfg);
+  const cA=cloneCfg(base); cA.agent.memory='A';
+  const cB=cloneCfg(base); cB.agent.memory='B';
+  const A=runExperiment(cA), B=runExperiment(cB);
+  return { A:A, B:B, delta:{ steps:B.steps-A.steps, memSize:B.memSize-A.memSize } };
+}
+
+// sweep: spazza cfg.sweep.param da from a to in steps punti; per ogni punto pair().
+function setParam(c,param,value){
+  if(param==='noise')         c.run.noise=Math.max(0,value);
+  else if(param==='goalPull') c.agent.goalPull=Math.max(0,value);
+  else if(param==='blobs')    c.world.blobs=Math.max(1,Math.round(value));
+  else if(param==='seed')     c.seed=Math.round(value);
+  else if(param==='maxSteps') c.run.maxSteps=Math.max(1,Math.round(value));
+}
+function sweepPoint(base, param, value){
+  const c=cloneCfg(base);
+  setParam(c,param,value);
+  const pr=pair(c);
+  return {
+    value: round3(value),
+    A:{ steps:pr.A.steps, memSize:pr.A.memSize, reached:pr.A.reached },
+    B:{ steps:pr.B.steps, memSize:pr.B.memSize, reached:pr.B.reached }
+  };
+}
+function sweep(cfg){
+  const base=normCfg(cfg);
+  const s=base.sweep;
+  const out=[];
+  for(let i=0;i<s.steps;i++){
+    const v = s.from + (s.to-s.from)*i/(s.steps-1);
+    out.push(sweepPoint(base, s.param, v));
+  }
+  return out;
+}
+
+/* ---- API headless su window (JSON-serializzabili, senza UI) ---- */
+window.__runExperiment = function(cfg){ return runExperiment(cfg); };
+window.__pair          = function(cfg){ return pair(cfg); };
+window.__sweep         = function(cfg){ return sweep(cfg); };
+
+/* =====================================================================
+   UI — arena viva, config, tabella verdetto, plot sweep, export
+   ===================================================================== */
+const $=function(id){ return document.getElementById(id); };
+const COL_A='#5ee0c0', COL_B='#ffb14e';
+
+const cv=$('arena'), ctx=cv.getContext('2d');
+const plotCv=$('plot'), pg=plotCv.getContext('2d');
+
+/* --- lettura/applicazione config dalla UI --- */
+function readCfg(){
+  return normCfg({
+    seed:+$('inSeed').value,
+    world:{ size:[180,110], blobs:+$('inBlobs').value, dynamic:$('inDyn').checked },
+    agent:{ innateSeed:+$('inInnate').value, goal:true, goalPull:+$('inGoal').value, memory:$('inMem').value },
+    run:{ maxSteps:+$('inSteps').value, noise:+$('inNoise').value },
+    sweep:{ param:$('swParam').value, from:+$('swFrom').value, to:+$('swTo').value, steps:+$('swSteps').value }
+  });
+}
+function applyCfg(c){
+  c=normCfg(c);
+  $('inSeed').value=c.seed;
+  $('inInnate').value=c.agent.innateSeed;
+  $('inGoal').value=c.agent.goalPull;
+  $('inNoise').value=c.run.noise;
+  $('inSteps').value=c.run.maxSteps;
+  $('inBlobs').value=c.world.blobs;
+  $('inDyn').checked=c.world.dynamic;
+  $('inMem').value=(c.agent.memory==='A'||c.agent.memory==='B')?c.agent.memory:'Pair';
+  $('swParam').value=c.sweep.param;
+  $('swFrom').value=c.sweep.from;
+  $('swTo').value=c.sweep.to;
+  $('swSteps').value=c.sweep.steps;
+}
+function status(msg){ $('status').textContent=msg||''; }
+
+/* --- run osservata: 1 o 2 sim animate nella stessa arena --- */
+let live=null;           // {entries:[{sim,kind,color,done,res}], cfg, done}
+let previewSim=makeSim(readCfg());   // per mostrare il mondo da fermo
+const STEPS_PER_FRAME=8;
+
+function startRun(){
+  const cfg=readCfg();
+  const mode=$('inMem').value;
+  function entry(kind,color){
+    const c=cloneCfg(cfg); c.agent.memory=kind;
+    return { sim:makeSim(c), kind:kind, color:color, done:false, res:null };
+  }
+  live={ cfg:cfg, done:false, entries: mode==='Pair'
+    ? [entry('A',COL_A), entry('B',COL_B)]
+    : [entry(mode, mode==='A'?COL_A:COL_B)] };
+  fillTable(null,null); $('verdict').textContent=''; $('testOut').textContent='';
+  status('Run in corso ('+(mode==='Pair'?'A vs B':mode)+')…');
+}
+function advanceLive(){
+  if(!live || live.done) return;
+  for(let e of live.entries){
+    if(e.done) continue;
+    for(let k=0;k<STEPS_PER_FRAME && !e.done;k++){
+      simStep(e.sim);
+      const a=e.sim.agent;
+      const d=Math.hypot(a.goalX-a.px, a.goalY-a.py);
+      // stesso identico criterio di runExperiment -> stessi numeri della headless
+      if(d<GOAL_EPS || e.sim.step>=live.cfg.run.maxSteps){
+        e.done=true;
+        e.res={ reached:d<GOAL_EPS, steps:e.sim.step, memSize:a.mem.size(), finalDist:round3(d) };
+      }
+    }
+  }
+  if(live.entries.every(function(e){return e.done;})){
+    live.done=true;
+    const eA=live.entries.filter(function(e){return e.kind==='A';})[0];
+    const eB=live.entries.filter(function(e){return e.kind==='B';})[0];
+    fillTable(eA?eA.res:null, eB?eB.res:null);
+    status('Run completata.');
+  }
+}
+
+/* --- rendering arena (stessa mappa colore teal dell'arena originale) --- */
+let fc=null, fctx=null, fimg=null, fcW=0, fcH=0;
+function ensureFieldCanvas(W,H){
+  if(fc && fcW===W && fcH===H) return;
+  fc=document.createElement('canvas'); fc.width=W; fc.height=H;
+  fctx=fc.getContext('2d'); fimg=fctx.createImageData(W,H); fcW=W; fcH=H;
+}
+function drawArena(){
+  const sims = (live && live.entries.length) ? live.entries : [{sim:previewSim,color:COL_A,kind:previewSim.agent.mem.kind}];
+  const world=sims[0].sim.world, W=world.W, H=world.H;
+  const CW=cv.width, CH=cv.height, SX=CW/W, SY=CH/H;
+  ctx.clearRect(0,0,CW,CH);
+  ensureFieldCanvas(W,H);
+  const d=fimg.data, field=world.field;
+  for(let i=0;i<W*H;i++){
+    const g=Math.pow(field[i],1.15);
+    d[i*4  ]=clamp(g*40 ,0,255);
+    d[i*4+1]=clamp(g*210,0,255);
+    d[i*4+2]=clamp(g*180,0,255);
+    d[i*4+3]=255;
+  }
+  fctx.putImageData(fimg,0,0);
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(fc,0,0,W,H,0,0,CW,CH);
+  for(let s=0;s<sims.length;s++){
+    const e=sims[s], a=e.sim.agent;
+    // scia
+    if(a.trail.length>=4){
+      ctx.beginPath();
+      ctx.moveTo(a.trail[0]*SX, a.trail[1]*SY);
+      for(let i=2;i<a.trail.length;i+=2) ctx.lineTo(a.trail[i]*SX, a.trail[i+1]*SY);
+      ctx.strokeStyle=e.color; ctx.globalAlpha=0.35; ctx.lineWidth=1.5; ctx.stroke();
+      ctx.globalAlpha=1;
+    }
+    // goal ⊕
+    const gx=a.goalX*SX, gy=a.goalY*SY;
+    ctx.strokeStyle=e.color; ctx.globalAlpha=0.7; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(gx,gy,7,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(gx-4,gy); ctx.lineTo(gx+4,gy);
+    ctx.moveTo(gx,gy-4); ctx.lineTo(gx,gy+4); ctx.stroke();
+    ctx.globalAlpha=1;
+    // pallina + alone di sorpresa
+    const x=a.px*SX, y=a.py*SY;
+    ctx.beginPath(); ctx.arc(x,y,3+a.surprise*4,0,Math.PI*2);
+    ctx.fillStyle=e.color; ctx.globalAlpha=0.18; ctx.fill(); ctx.globalAlpha=1;
+    ctx.beginPath(); ctx.arc(x,y,4,0,Math.PI*2);
+    ctx.fillStyle=e.color; ctx.fill();
+    ctx.strokeStyle='#04120e'; ctx.lineWidth=1; ctx.stroke();
+  }
+}
+function fmt(v,dd){ return (Math.round(v*Math.pow(10,dd))/Math.pow(10,dd)).toFixed(dd); }
+function updateReadout(){
+  if(!live){ $('readout').textContent='pronto. seed '+previewSim.cfg.seed+' · mondo '+previewSim.world.blobs.length+' blob'; return; }
+  let lines=[];
+  for(let i=0;i<live.entries.length;i++){
+    const e=live.entries[i], a=e.sim.agent;
+    const dNow=Math.hypot(a.goalX-a.px, a.goalY-a.py);   // distanza dalla posizione REALE
+    lines.push(e.kind+' | step '+e.sim.step+' | sorpresa '+fmt(a.surprise,3)+' | S* '+fmt(a.setpoint,3)
+      +' | mem '+a.mem.size()+' | dist '+fmt(dNow,1)+(e.done?(e.res.reached?'  [GOAL]':'  [maxSteps]'):''));
+  }
+  $('readout').textContent=lines.join('\n');
+}
+
+/* --- tabella verdetto --- */
+function cell(id,v){ $(id).textContent = (v===null||v===undefined) ? '—' : String(v); }
+function fillTable(rA,rB){
+  cell('tAs', rA?rA.steps:null);          cell('tBs', rB?rB.steps:null);
+  cell('tAm', rA?rA.memSize:null);        cell('tBm', rB?rB.memSize:null);
+  cell('tAr', rA?(rA.reached?'sì':'no'):null); cell('tBr', rB?(rB.reached?'sì':'no'):null);
+  cell('tAd', rA?rA.finalDist:null);      cell('tBd', rB?rB.finalDist:null);
+  if(rA&&rB){
+    cell('tDs', (rB.steps-rA.steps>=0?'+':'')+(rB.steps-rA.steps));
+    cell('tDm', (rB.memSize-rA.memSize>=0?'+':'')+(rB.memSize-rA.memSize));
+    let v;
+    if(rA.reached&&!rB.reached) v='A raggiunge il goal, B no → vince A.';
+    else if(!rA.reached&&rB.reached) v='B raggiunge il goal, A no → vince B.';
+    else if(!rA.reached&&!rB.reached) v='Nessuno raggiunge il goal entro maxSteps.';
+    else if(rA.steps===rB.steps) v='Pareggio sui passi ('+rA.steps+'); memoria: A '+rA.memSize+' vs B '+rB.memSize+'.';
+    else{
+      const w=rA.steps<rB.steps?'A':'B';
+      v='Vince '+w+' sui passi ('+rA.steps+' vs '+rB.steps+'); memoria: A '+rA.memSize+' vs B '+rB.memSize+'.';
+    }
+    $('verdict').textContent='Verdetto: '+v;
+  } else {
+    cell('tDs',null); cell('tDm',null);
+    if(rA||rB) $('verdict').textContent='Run singola ('+(rA?'A':'B')+'): usa Pair per il confronto.';
+  }
+}
+
+/* --- plot sweep --- */
+let sweepData=null;    // {param, points:[...]}
+function drawPlot(){
+  const W=plotCv.width, H=plotCv.height;
+  pg.fillStyle='#0a0e12'; pg.fillRect(0,0,W,H);   // sfondo pieno: il PNG esportato non è trasparente
+  if(!sweepData || !sweepData.points.length){
+    pg.fillStyle='#5b6b78'; pg.font='12px Consolas,monospace';
+    pg.fillText('Nessuno sweep. Premi "Sweep" per generare le curve.', 20, H/2);
+    $('plotSummary').textContent='';
+    return;
+  }
+  const metric=$('metricSel').value;               // 'steps' | 'memSize'
+  const pts=sweepData.points;
+  const xs=pts.map(function(p){return p.value;});
+  const ya=pts.map(function(p){return p.A[metric];});
+  const yb=pts.map(function(p){return p.B[metric];});
+  const xmin=Math.min.apply(null,xs), xmax=Math.max.apply(null,xs);
+  const ymax=Math.max(1, Math.max.apply(null,ya.concat(yb)))*1.08;
+  const ml=56, mr=12, mt=14, mb=36;
+  const pw=W-ml-mr, ph=H-mt-mb;
+  function X(v){ return ml + (xmax>xmin ? (v-xmin)/(xmax-xmin) : 0.5)*pw; }
+  function Y(v){ return mt + ph - (v/ymax)*ph; }
+  // griglia + tick
+  pg.strokeStyle='rgba(94,224,192,0.10)'; pg.lineWidth=1;
+  pg.fillStyle='#5b6b78'; pg.font='10px Consolas,monospace';
+  for(let i=0;i<=4;i++){
+    const yv=ymax*i/4, y=Y(yv);
+    pg.beginPath(); pg.moveTo(ml,y); pg.lineTo(W-mr,y); pg.stroke();
+    pg.textAlign='right'; pg.fillText(String(Math.round(yv)), ml-6, y+3);
+  }
+  for(let i=0;i<=4;i++){
+    const xv=xmin+(xmax-xmin)*i/4, x=X(xv);
+    pg.beginPath(); pg.moveTo(x,mt); pg.lineTo(x,mt+ph); pg.stroke();
+    pg.textAlign='center'; pg.fillText(String(round3(xv)), x, mt+ph+14);
+  }
+  // assi
+  pg.strokeStyle='rgba(94,224,192,0.35)';
+  pg.beginPath(); pg.moveTo(ml,mt); pg.lineTo(ml,mt+ph); pg.lineTo(W-mr,mt+ph); pg.stroke();
+  pg.fillStyle='#aebcc6';
+  pg.textAlign='center'; pg.fillText(sweepData.param+' →', ml+pw/2, H-6);
+  pg.save(); pg.translate(12, mt+ph/2); pg.rotate(-Math.PI/2);
+  pg.fillText(metric+' →', 0, 0); pg.restore();
+  // curve A/B
+  function line(arr,col){
+    pg.strokeStyle=col; pg.lineWidth=1.8; pg.beginPath();
+    for(let i=0;i<pts.length;i++){ const x=X(xs[i]), y=Y(arr[i]); i?pg.lineTo(x,y):pg.moveTo(x,y); }
+    pg.stroke();
+    pg.fillStyle=col;
+    for(let i=0;i<pts.length;i++){ pg.beginPath(); pg.arc(X(xs[i]),Y(arr[i]),2.6,0,Math.PI*2); pg.fill(); }
+  }
+  line(ya,COL_A); line(yb,COL_B);
+  // legenda
+  pg.font='11px Consolas,monospace'; pg.textAlign='left';
+  pg.fillStyle=COL_A; pg.fillRect(W-mr-150,mt+6,14,3); pg.fillText('A novelty-gated', W-mr-130, mt+11);
+  pg.fillStyle=COL_B; pg.fillRect(W-mr-150,mt+22,14,3); pg.fillText('B store-all', W-mr-130, mt+27);
+  // sintesi: su quanti punti A batte B nella metrica corrente (minore = meglio)
+  let wins=0, ties=0;
+  for(let i=0;i<pts.length;i++){
+    if(pts[i].A[metric]<pts[i].B[metric]) wins++;
+    else if(pts[i].A[metric]===pts[i].B[metric]) ties++;
+  }
+  $('plotSummary').textContent='Sintesi ('+metric+', minore = meglio): A vince su '+wins+' su '+pts.length+' punti'
+    +(ties?(' ('+ties+' pareggi)'):'')+' · sweep di '+sweepData.param+'.';
+}
+
+/* --- sweep dalla UI: chunked con setTimeout per non congelare la pagina --- */
+let sweepBusy=false;
+function runSweepUI(){
+  if(sweepBusy) return;
+  const base=readCfg();
+  const s=base.sweep;
+  sweepBusy=true;
+  sweepData={ param:s.param, points:[] };
+  status('Sweep 0/'+s.steps+'…');
+  let i=0;
+  function next(){
+    if(i>=s.steps){ sweepBusy=false; status('Sweep completo ('+s.steps+' punti).'); drawPlot(); return; }
+    const v=s.from+(s.to-s.from)*i/(s.steps-1);
+    sweepData.points.push(sweepPoint(base, s.param, v));   // stessa funzione dell'headless __sweep
+    i++;
+    status('Sweep '+i+'/'+s.steps+'…');
+    drawPlot();
+    setTimeout(next,0);
+  }
+  setTimeout(next,0);
+}
+
+/* --- export --- */
+function download(name, text, mime){
+  const url=URL.createObjectURL(new Blob([text],{type:mime}));
+  const el=document.createElement('a');
+  el.href=url; el.download=name;
+  document.body.appendChild(el); el.click(); el.remove();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+}
+function exportCsv(){
+  if(!sweepData || !sweepData.points.length){ status('Niente da esportare: fai prima uno Sweep.'); return; }
+  let csv='value,A_steps,A_mem,B_steps,B_mem\n';
+  for(let i=0;i<sweepData.points.length;i++){
+    const p=sweepData.points[i];
+    csv+=[p.value,p.A.steps,p.A.memSize,p.B.steps,p.B.memSize].join(',')+'\n';
+  }
+  download('void-lab-sweep.csv', csv, 'text/csv');
+  status('CSV esportato.');
+}
+function exportPng(){
+  const el=document.createElement('a');
+  el.href=plotCv.toDataURL('image/png');
+  el.download='void-lab-plot.png';
+  document.body.appendChild(el); el.click(); el.remove();
+  status('PNG del plot esportato.');
+}
+
+/* --- save/load (textarea + download + file input): il cfg determina la run --- */
+function saveExperiment(){
+  const c=readCfg();
+  const json=JSON.stringify(c,null,2);
+  $('cfgText').value=json;
+  download('void-lab-experiment.json', json, 'application/json');
+  status('Esperimento salvato (textarea + download).');
+}
+function loadExperiment(){
+  const txt=$('cfgText').value.trim();
+  if(!txt){ status('Textarea vuota: incolla un JSON o carica un file.'); return; }
+  try{
+    applyCfg(JSON.parse(txt));
+    previewSim=makeSim(readCfg()); live=null;
+    status('Esperimento caricato: premi Run per riprodurlo (deterministico).');
+  }catch(err){ status('JSON non valido: '+err.message); }
+}
+$('cfgFile').addEventListener('change', function(ev){
+  const f=ev.target.files && ev.target.files[0];
+  if(!f) return;
+  const rd=new FileReader();
+  rd.onload=function(){ $('cfgText').value=String(rd.result); loadExperiment(); };
+  rd.readAsText(f);
+});
+
+/* --- TEST CANONICO: pair su seed 1337 (default), eseguito due volte.
+       PASS se (a) i due giri danno byte-per-byte lo stesso JSON (determinismo),
+       (b) i numeri sono finiti, (c) la memoria di A rispetta il cap 200. --- */
+function canonicalTest(){
+  status('Test canonico in corso…');
+  const cfg=defaultCfg();                 // seed 1337, default della spec
+  const r1=pair(cfg);
+  const r2=pair(cfg);
+  const j1=JSON.stringify(r1), j2=JSON.stringify(r2);
+  const det=(j1===j2);
+  const sane=[r1.A,r1.B].every(function(r){
+    return Number.isFinite(r.steps)&&Number.isFinite(r.memSize)&&Number.isFinite(r.finalDist);
+  });
+  const capOk=r1.A.memSize<=MEMCAP_A;
+  const pass=det&&sane&&capOk;
+  fillTable(r1.A,r1.B);
+  const out=$('testOut');
+  out.innerHTML='Test canonico (pair, seed 1337): <span class="'+(pass?'pass':'fail')+'">'+(pass?'PASS':'FAIL')+'</span>'
+    +' — determinismo '+(det?'ok':'KO')+' · numeri finiti '+(sane?'ok':'KO')
+    +' · cap A '+r1.A.memSize+'/'+MEMCAP_A+(capOk?' ok':' KO')
+    +' · A '+r1.A.steps+' passi / B '+r1.B.steps+' passi.';
+  status('Test canonico eseguito.');
+  return pass;
+}
+
+/* --- wiring bottoni --- */
+$('bRun').onclick=startRun;
+$('bSweep').onclick=runSweepUI;
+$('bTest').onclick=canonicalTest;
+$('bSave').onclick=saveExperiment;
+$('bLoad').onclick=loadExperiment;
+$('bCsv').onclick=exportCsv;
+$('bPng').onclick=exportPng;
+$('metricSel').onchange=drawPlot;
+// cambio config -> aggiorna l'anteprima del mondo (senza far partire nulla)
+['inSeed','inBlobs','inDyn','inInnate'].forEach(function(id){
+  $(id).addEventListener('change', function(){ if(!live||live.done){ previewSim=makeSim(readCfg()); live=null; } });
+});
+
+/* --- loop di rendering --- */
+function frame(){
+  advanceLive();
+  drawArena();
+  updateReadout();
+  requestAnimationFrame(frame);
+}
+
+/* avvio */
+$('cfgText').value=JSON.stringify(defaultCfg(),null,2);
+fillTable(null,null);
+drawPlot();
+requestAnimationFrame(frame);
+})();
+</script>
+
+<!-- =====================================================================
+     STRATO B · MODULO-PONTE verso il database locale (lib/dati.js).
+     È un <script type="module"> SEPARATO: non tocca né rompe lo script
+     classico qui sopra (motore di simulazione + __pair/__sweep intatti).
+     Comunica col banco SOLO tramite:
+       - le API headless deterministiche  window.__pair / window.__sweep
+       - gli input della UI (stessi id che legge readCfg())
+       - addEventListener sui bottoni Run/Sweep (coesiste con .onclick del
+         banco: NON sovrascrive il wiring esistente).
+     Tutto offline. Ogni errore del DB è catturato: il banco non si rompe.
+     ===================================================================== -->
+<script type="module">
+"use strict";
+
+/* Import DINAMICO di Dati: se fallisce (es. aperto via file:// senza
+   lanciatore) il modulo gira comunque e mostra il banner, senza crash. */
+let Dati = null;
+let dbReady = false;
+let initPromise = null;
+
+function ensureInit(){
+  if(initPromise) return initPromise;          // singleton: un solo init
+  initPromise = (async () => {
+    const mod = await import('./lib/dati.js');  // ESM locale (Strato A)
+    Dati = mod.default || mod.Dati;
+    const st = await Dati.init();               // avvia SQLite (+DuckDB)
+    dbReady = true;
+    return st;
+  })();
+  return initPromise;
+}
+
+/* ---------- piccoli helper DOM/numeri (namespace del ponte) ---------- */
+const el = (id) => document.getElementById(id);
+const val = (id) => el(id).value;
+function setVal(id, v){ const e = el(id); if(e) e.value = v; }
+function round3(v){ return Math.round(v*1000)/1000; }
+function fmtNum(v){
+  if(v===null || v===undefined || !isFinite(+v)) return '—';
+  const n = +v;
+  return (Number.isInteger(n) || Math.abs(n) >= 1000) ? String(n) : String(Math.round(n*10000)/10000);
+}
+function archStatus(msg){ const s = el('archStatus'); if(s) s.textContent = msg || ''; }
+
+/* Banner "manca persistenza" / "DB non disponibile". Il banco resta usabile. */
+function showBanner(html){ const b = el('dbBanner'); if(b){ b.innerHTML = html; b.classList.add('on'); } }
+
+/* =====================================================================
+   LETTURA CONFIG DALLA UI — rispecchia readCfg() del banco (stessi id).
+   agent.goalPull viene letto dal campo #inGoal (default 0.95 = GOALG del
+   core) così il config salvato è COMPLETO e un eventuale goalPull != 0.95
+   viene persistito e riprodotto identico da RIFAI.
+   Nota: __pair riceve questo oggetto e lo normalizza da sé via normCfg().
+   ===================================================================== */
+const GOALPULL_DEFAULT = 0.95;   // = costante GOALG del core (tiro al goal)
+function domCfg(){
+  return {
+    seed: +val('inSeed'),
+    world: { size:[180,110], blobs:+val('inBlobs'), dynamic: el('inDyn').checked },
+    agent: { innateSeed:+val('inInnate'), goal:true, goalPull: Number.isFinite(+val('inGoal')) ? +val('inGoal') : GOALPULL_DEFAULT, memory: val('inMem') },
+    run:   { maxSteps:+val('inSteps'), noise:+val('inNoise') },
+    sweep: { param: val('swParam'), from:+val('swFrom'), to:+val('swTo'), steps:+val('swSteps') }
+  };
+}
+/* setParam del banco, replicato per costruire il config di ogni punto sweep. */
+function applyParam(c, param, value){
+  if(param==='noise')         c.run.noise   = Math.max(0, value);
+  else if(param==='goalPull') c.agent.goalPull = Math.max(0, value);
+  else if(param==='blobs')    c.world.blobs = Math.max(1, Math.round(value));
+  else if(param==='seed')     c.seed        = Math.round(value);
+  else if(param==='maxSteps') c.run.maxSteps= Math.max(1, Math.round(value));
+}
+const clone = (o) => JSON.parse(JSON.stringify(o));
+
+/* =====================================================================
+   SALVATAGGIO — una "faccia" (A o B) del confronto → un run nel DB.
+   experiment = id di gruppo condiviso da A e B dello stesso confronto.
+   ===================================================================== */
+async function saveSide(kind, baseCfg, mem, r, grp, extraTags){
+  const cfg = clone(baseCfg);
+  cfg.agent.memory = mem;                         // config completo, lato giusto
+  const seed     = cfg.seed;
+  const goalPull = cfg.agent.goalPull;
+  const noise    = cfg.run.noise;
+  const tags = ['mem:'+mem, 'seed:'+seed, 'goalPull:'+goalPull, 'noise:'+noise, 'grp:'+grp];
+  if(extraTags) for(const t of extraTags) tags.push(t);
+  const metrics = { steps:r.steps, memSize:r.memSize, reached: r.reached ? 1 : 0 };
+  if(typeof r.finalDist === 'number') metrics.finalDist = r.finalDist;  // presente nei pair
+  // experiment = grp: A e B condividono il gruppo → stesso confronto identificabile.
+  await Dati.saveRun({ experiment: grp, kind, config: cfg, metrics, notes:'', tags });
+}
+
+/* --- Run in modalità Pair → salva DUE run (A e B) dello stesso confronto --- */
+async function onRunSave(){
+  try{
+    if(val('inMem') !== 'Pair') return;   // solo il confronto A/B viene salvato
+    await ensureInit();
+    if(!dbReady) return;
+    const base = domCfg();
+    const res  = window.__pair(base);      // headless deterministico = numeri del banco
+    const grp  = 'pair-' + Date.now() + '-' + Math.floor(Math.random()*1e6);
+    await saveSide('pair', base, 'A', res.A, grp, null);
+    await saveSide('pair', base, 'B', res.B, grp, null);
+    await refreshArchive();
+    archStatus('Confronto salvato (A+B).');
+  }catch(err){ archStatus('Errore salvataggio confronto: ' + err.message); }
+}
+
+/* --- Sweep → per ogni punto un pair, salvato come 2 run kind "sweep" --- */
+async function onSweepSave(){
+  try{
+    await ensureInit();
+    if(!dbReady) return;
+    const base  = domCfg();
+    const s     = base.sweep;
+    const steps = Math.max(2, Math.min(60, s.steps|0));
+    archStatus('Salvataggio sweep…');
+    for(let i=0;i<steps;i++){
+      // stessa formula del banco: v non arrotondato entra nella simulazione
+      const v   = s.from + (s.to - s.from) * i / (steps - 1);
+      const cfg = clone(base);
+      applyParam(cfg, s.param, v);
+      const res = window.__pair(cfg);      // pair al valore spazzato (deterministico)
+      const grp = 'sweep-' + Date.now() + '-' + i + '-' + Math.floor(Math.random()*1e5);
+      const extra = ['kind:sweep', 'sweepParam:'+s.param, 'sweepVal:'+round3(v)];
+      await saveSide('sweep', cfg, 'A', res.A, grp, extra);
+      await saveSide('sweep', cfg, 'B', res.B, grp, extra);
+      archStatus('Salvataggio sweep… ' + (i+1) + '/' + steps);
+    }
+    await refreshArchive();
+    archStatus('Sweep salvato (' + steps + ' punti · ' + (steps*2) + ' run).');
+  }catch(err){ archStatus('Errore salvataggio sweep: ' + err.message); }
+}
+
+/* =====================================================================
+   RENDERING ARCHIVIO — tabella di TUTTI i run (listRuns), dal più recente.
+   Le righe sono costruite via DOM (le note utente non passano da innerHTML).
+   ===================================================================== */
+function td(text){ const d = document.createElement('td'); d.textContent = (text===null||text===undefined) ? '—' : String(text); return d; }
+function tdNum(v){ const d = td(fmtNum(v)); d.className = 'num'; return d; }
+function btn(label, fn){ const b = document.createElement('button'); b.textContent = label; b.addEventListener('click', fn); return b; }
+function memFromTags(tags){
+  if(!tags) return null;
+  const m = String(tags).split(',').find((t)=>t.indexOf('mem:')===0);
+  return m ? m.slice(4) : null;
+}
+
+function renderArchive(runs, mm){
+  const tb = el('archBody');
+  tb.innerHTML = '';
+  if(!runs.length){
+    tb.innerHTML = '<tr><td class="empty" colspan="11">nessun esperimento salvato.</td></tr>';
+    return;
+  }
+  for(const run of runs){
+    let cfg = {};
+    try{ cfg = JSON.parse(run.config_json || '{}'); }catch(_e){ cfg = {}; }
+    const m   = mm[run.id] || {};
+    const mem = (cfg.agent && cfg.agent.memory) || memFromTags(run.tags) || '—';
+
+    const tr = document.createElement('tr');
+    tr.appendChild(td(new Date(run.created_at).toLocaleString()));
+    tr.appendChild(td(run.kind));
+    const mTd = td(mem); mTd.className = mem==='A' ? 'memA' : (mem==='B' ? 'memB' : ''); tr.appendChild(mTd);
+    tr.appendChild(tdNum(cfg.seed));
+    tr.appendChild(tdNum(cfg.agent && cfg.agent.goalPull));
+    tr.appendChild(tdNum(cfg.run && cfg.run.noise));
+    tr.appendChild(tdNum(m.steps));
+    tr.appendChild(tdNum(m.memSize));
+    tr.appendChild(td(m.reached===1 ? 'sì' : (m.reached===0 ? 'no' : '—')));
+
+    // NOTE modificabile → UPDATE runs.notes
+    const nTd = document.createElement('td');
+    const inp = document.createElement('input');
+    inp.className = 'note'; inp.value = run.notes || ''; inp.title = 'nota (si salva nel database)';
+    inp.addEventListener('change', () => saveNote(run.id, inp.value));
+    nTd.appendChild(inp); tr.appendChild(nTd);
+
+    // AZIONI: RIFAI / APRI / ELIMINA
+    const aTd = document.createElement('td'); aTd.className = 'acts';
+    aTd.appendChild(btn('RIFAI',   () => redo(run, cfg)));
+    aTd.appendChild(btn('APRI',    () => openDetail(run, cfg, m)));
+    aTd.appendChild(btn('ELIMINA', () => del(run.id)));
+    tr.appendChild(aTd);
+
+    tb.appendChild(tr);
+  }
+}
+
+/* STRATO D · cache dei run caricati: i filtri lavorano lato JS su questi. */
+let _allRuns = [], _allMM = {};
+
+async function refreshArchive(){
+  try{
+    await ensureInit();
+    const runs  = await Dati.listRuns();                                   // tutti, id DESC
+    const mrows = await Dati.sqlite('SELECT run_id, key, value FROM metrics', []);
+    const mm = {};
+    for(const r of mrows){ (mm[r.run_id] || (mm[r.run_id] = {}))[r.key] = r.value; }
+    _allRuns = runs; _allMM = mm;                       // cache per i filtri live
+    setExpCount(new Set(runs.map((r)=> r.experiment)).size);   // stato: numero esperimenti
+    applyArchFilters();                                 // rende la lista applicando i filtri correnti
+  }catch(err){
+    _allRuns = []; _allMM = {};
+    el('archCount').textContent = 'esperimenti salvati: —';
+    const info = el('archFilterInfo'); if(info) info.textContent = '';
+    el('archBody').innerHTML = '<tr><td class="empty" colspan="11">archivio non disponibile (' + (err.message||err) + ')</td></tr>';
+  }
+}
+
+/* =====================================================================
+   STRATO D · FILTRI ARCHIVIO (live, lato JS sui run già caricati).
+   memoria (A/B/tutti) · tipo (pair/sweep/run/tutti) · ricerca su tag+note.
+   ===================================================================== */
+function readArchFilters(){
+  return {
+    mem:  (el('fltMem')  && el('fltMem').value)  || '',
+    kind: (el('fltKind') && el('fltKind').value) || '',
+    q:   ((el('fltQ')    && el('fltQ').value)    || '').trim().toLowerCase()
+  };
+}
+function runMem(run){
+  let cfg = {}; try{ cfg = JSON.parse(run.config_json || '{}'); }catch(_e){ cfg = {}; }
+  return (cfg.agent && cfg.agent.memory) || memFromTags(run.tags) || '';
+}
+function applyArchFilters(){
+  const f = readArchFilters();
+  let rows = _allRuns;
+  if(f.mem)  rows = rows.filter((r)=> runMem(r) === f.mem);
+  if(f.kind) rows = rows.filter((r)=> r.kind === f.kind);
+  if(f.q)    rows = rows.filter((r)=> (((r.tags||'') + ' ' + (r.notes||'')).toLowerCase().indexOf(f.q) >= 0));
+  el('archCount').textContent = 'esperimenti salvati: ' + _allRuns.length;
+  const info = el('archFilterInfo');
+  if(info) info.textContent = (rows.length !== _allRuns.length) ? ('mostrati ' + rows.length + ' di ' + _allRuns.length) : '';
+  renderArchive(rows, _allMM);
+}
+
+/* =====================================================================
+   STRATO D · STATO DATABASE nel pannello «Come si usa».
+   ===================================================================== */
+function setExpCount(n){ const e = el('dbStatExp'); if(e) e.textContent = (n===undefined||n===null) ? '—' : String(n); }
+function renderDbStat(st){
+  const box = el('dbStat'); if(!box) return;
+  // normalizza la versione: alcune (DuckDB) portano già il prefisso 'v'.
+  const withV = (v) => v ? (/^v/i.test(String(v)) ? String(v) : ('v' + v)) : '—';
+  const yn = st.persistent ? '<span class="ok">sì</span>' : '<span class="no">no</span>';
+  box.innerHTML =
+    '<span class="kv">motore SQLite: <b>' + st.sqlite.mode + (st.sqlite.version ? (' · ' + withV(st.sqlite.version)) : '') + '</b></span>' +
+    '<span class="kv">motore DuckDB: <b>' + withV(st.duckdb.version) + '</b></span>' +
+    '<span class="kv">persistente: ' + yn + '</span>' +
+    '<span class="kv">esperimenti: <b id="dbStatExp">—</b></span>';
+}
+
+/* =====================================================================
+   STRATO D · ESPORTA TUTTO — un unico JSON con experiments + runs + metrics
+   (letti da Dati.sqlite). È il PONTE per l'analisi esterna: passi il file a
+   un assistente per un'analisi profonda. Mostra quanti run esportati.
+   ===================================================================== */
+function dlJson(name, text){
+  const url = URL.createObjectURL(new Blob([text], { type:'application/json' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=> URL.revokeObjectURL(url), 1000);
+}
+async function exportAll(){
+  try{
+    await ensureInit();
+    const experiments = await Dati.sqlite('SELECT id, name, created_at, tags FROM experiments ORDER BY id', []);
+    const runs = await Dati.sqlite(
+      'SELECT r.id, r.experiment_id, e.name AS experiment, r.created_at, r.config_json, r.kind, r.tags, r.notes ' +
+      'FROM runs r JOIN experiments e ON e.id = r.experiment_id ORDER BY r.id', []);
+    const metrics = await Dati.sqlite('SELECT run_id, key, value FROM metrics ORDER BY run_id, key', []);
+    const payload = {
+      format: 'void-lab-export',
+      version: 1,
+      exported_at: new Date().toISOString(),
+      counts: { experiments: experiments.length, runs: runs.length, metrics: metrics.length },
+      experiments, runs, metrics
+    };
+    dlJson('void-lab-tutto.json', JSON.stringify(payload, null, 2));
+    archStatus('Esportati ' + runs.length + ' run · ' + experiments.length + ' esperimenti · ' + metrics.length + ' metriche.');
+  }catch(err){ archStatus('Errore export: ' + (err.message||err)); }
+}
+
+/* =====================================================================
+   STRATO D · IMPORTA — legge un JSON esportato e re-inserisce i run.
+   Idempotente / anti-duplicato: si genera una FIRMA per ogni run
+   (experiment|kind|config_json|tags|notes); i run la cui firma è già
+   presente nel database (o già importati in questo batch) vengono saltati.
+   I run nuovi passano da Dati.saveRun (nuovi id + metriche associate).
+   ===================================================================== */
+function runSig(r){ return [r.experiment, r.kind, r.config_json, r.tags, r.notes].join(''); }
+async function importAll(file){
+  try{
+    await ensureInit();
+    const text = await file.text();
+    let data;
+    try{ data = JSON.parse(text); }catch(_e){ archStatus('Import: JSON non valido.'); return; }
+    if(!data || !Array.isArray(data.runs)){ archStatus('Import: file non riconosciuto (manca "runs").'); return; }
+
+    // metriche raggruppate per run_id (id del FILE, non del database).
+    const metricsByRun = {};
+    if(Array.isArray(data.metrics)) for(const m of data.metrics){ (metricsByRun[m.run_id] || (metricsByRun[m.run_id] = {}))[m.key] = m.value; }
+    // fallback nome esperimento se un run non porta il campo experiment.
+    const expNameById = {};
+    if(Array.isArray(data.experiments)) for(const e of data.experiments) expNameById[e.id] = e.name;
+
+    // firme dei run GIÀ presenti nel database → dedup contro lo stato attuale.
+    const existing = await Dati.sqlite(
+      'SELECT e.name AS experiment, r.kind, r.config_json, r.tags, r.notes ' +
+      'FROM runs r JOIN experiments e ON e.id = r.experiment_id', []);
+    const seen = new Set(existing.map(runSig));
+
+    let imported = 0, skipped = 0;
+    for(const run of data.runs){
+      const experiment = run.experiment || expNameById[run.experiment_id] || 'default';
+      const configJson = run.config_json || '{}';
+      const kind  = run.kind  || 'run';
+      const tags  = run.tags  || '';
+      const notes = run.notes || '';
+      const sig = runSig({ experiment, kind, config_json: configJson, tags, notes });
+      if(seen.has(sig)){ skipped++; continue; }                 // duplicato grossolano → salta
+      let config = {}; try{ config = JSON.parse(configJson); }catch(_e){ config = {}; }
+      await Dati.saveRun({ experiment, kind, config, metrics: metricsByRun[run.id] || {}, notes, tags });
+      seen.add(sig); imported++;
+    }
+
+    await refreshArchive();
+    try{ await Dati.loadIntoDuck(); }catch(_e){}                 // riallinea le tabelle OLAP
+    window.dispatchEvent(new CustomEvent('voidlab:db-changed'));  // avvisa il tavolo di analisi
+    archStatus('Importati ' + imported + ' run · ' + skipped + ' saltati (già presenti).');
+  }catch(err){ archStatus('Errore import: ' + (err.message||err)); }
+}
+
+/* =====================================================================
+   STRATO D · SVUOTA DATABASE — cancella experiments/runs/metrics (con
+   conferma) per ripartire puliti. Dopo: contatore a 0, Archivio e Analisi
+   si svuotano.
+   ===================================================================== */
+async function clearDb(){
+  try{
+    if(!window.confirm('Svuotare TUTTO il database?\nCancella esperimenti, run e metriche. L\'operazione non è reversibile.')) return;
+    await ensureInit();
+    await Dati.sqlite('DELETE FROM metrics', []);
+    await Dati.sqlite('DELETE FROM runs', []);
+    await Dati.sqlite('DELETE FROM experiments', []);
+    try{ await Dati.sqlite('DELETE FROM sqlite_sequence', []); }catch(_e){ /* tabella assente: ok */ }
+    await refreshArchive();                                      // contatore → 0
+    try{ await Dati.loadIntoDuck(); }catch(_e){}                 // svuota runs_olap/metrics_olap
+    window.dispatchEvent(new CustomEvent('voidlab:db-cleared')); // il tavolo di analisi si azzera
+    archStatus('Database svuotato: 0 run.');
+  }catch(err){ archStatus('Errore svuotamento: ' + (err.message||err)); }
+}
+
+/* --- RIFAI: ricarica il config nella UI e ri-esegue (run singola A/B).
+       Deterministico: stessi numeri. Single-mode → onRunSave non ri-salva. --- */
+function redo(run, cfg){
+  try{
+    if(cfg.seed !== undefined) setVal('inSeed', cfg.seed);
+    if(cfg.agent && cfg.agent.innateSeed !== undefined) setVal('inInnate', cfg.agent.innateSeed);
+    // goalPull: campo di prima classe (sweep param) — va ripristinato o RIFAI userebbe il default 0.95
+    setVal('inGoal', (cfg.agent && cfg.agent.goalPull !== undefined) ? cfg.agent.goalPull : GOALPULL_DEFAULT);
+    if(cfg.run){
+      if(cfg.run.noise    !== undefined) setVal('inNoise', cfg.run.noise);
+      if(cfg.run.maxSteps !== undefined) setVal('inSteps', cfg.run.maxSteps);
+    }
+    if(cfg.world){
+      if(cfg.world.blobs !== undefined) setVal('inBlobs', cfg.world.blobs);
+      el('inDyn').checked = !!cfg.world.dynamic;
+    }
+    const mem = (cfg.agent && cfg.agent.memory === 'B') ? 'B' : 'A';
+    el('inMem').value = mem;                       // singola: riproduce ESATTAMENTE quel lato
+    window.scrollTo({ top:0, behavior:'smooth' });
+    el('bRun').click();                            // usa lo startRun del banco (via .onclick)
+    archStatus('RIFAI: eseguo ' + mem + ' (seed ' + cfg.seed + ') — deterministico.');
+  }catch(err){ archStatus('Errore RIFAI: ' + err.message); }
+}
+
+/* --- APRI: dettaglio config JSON completo + metriche + note --- */
+function openDetail(run, cfg, m){
+  const body = el('archModalBody');
+  body.innerHTML = '';
+  const mk = (cls, txt, mt) => { const d = document.createElement('div'); d.className = cls; if(mt) d.style.marginTop = mt; d.textContent = txt; return d; };
+  const pre = (txt) => { const p = document.createElement('pre'); p.textContent = txt; return p; };
+  const metricsTxt = Object.keys(m).length ? Object.keys(m).map((k)=>k+': '+m[k]).join('\n') : '(nessuna metrica)';
+  body.appendChild(mk('lab', 'Run #' + run.id + ' · ' + run.kind + ' · ' + new Date(run.created_at).toLocaleString()));
+  body.appendChild(mk('lab', 'config', '8px'));
+  body.appendChild(pre(JSON.stringify(cfg, null, 2)));
+  body.appendChild(mk('lab', 'metriche', '8px'));
+  body.appendChild(pre(metricsTxt));
+  body.appendChild(mk('lab', 'tags', '8px'));
+  body.appendChild(pre(run.tags || '(nessun tag)'));
+  body.appendChild(mk('lab', 'note', '8px'));
+  body.appendChild(pre(run.notes || '(vuote)'));
+  el('archModal').classList.add('on');
+}
+function closeModal(){ el('archModal').classList.remove('on'); }
+
+/* --- ELIMINA: cancella metriche + run --- */
+async function del(id){
+  try{
+    if(!window.confirm('Eliminare il run #' + id + ' dal database?')) return;
+    await ensureInit();
+    await Dati.sqlite('DELETE FROM metrics WHERE run_id = ?', [id]);
+    await Dati.sqlite('DELETE FROM runs WHERE id = ?', [id]);
+    await refreshArchive();
+    archStatus('Run #' + id + ' eliminato.');
+  }catch(err){ archStatus('Errore eliminazione: ' + err.message); }
+}
+
+/* --- NOTE: salva la nota della riga nel campo notes del run --- */
+async function saveNote(id, text){
+  try{
+    await ensureInit();
+    await Dati.sqlite('UPDATE runs SET notes = ? WHERE id = ?', [text, id]);
+    archStatus('Nota salvata (run #' + id + ').');
+  }catch(err){ archStatus('Errore salvataggio nota: ' + err.message); }
+}
+
+/* =====================================================================
+   WIRING + AVVIO DEL PONTE.
+   I listener sono attaccati SUBITO (click precoci gestiti: gli handler
+   fanno ensureInit() al loro interno). Poi init + primo refresh.
+   ===================================================================== */
+el('bRun').addEventListener('click', onRunSave);       // coesiste con .onclick=startRun
+el('bSweep').addEventListener('click', onSweepSave);   // coesiste con .onclick=runSweepUI
+el('bArchRefresh').addEventListener('click', refreshArchive);
+el('archModalX').addEventListener('click', closeModal);
+el('archModal').addEventListener('click', (ev) => { if(ev.target === el('archModal')) closeModal(); });
+
+/* STRATO D · wiring strumenti database + filtri live */
+el('bArchExport').addEventListener('click', exportAll);
+el('bArchImport').addEventListener('click', () => el('archImportFile').click());
+el('archImportFile').addEventListener('change', (ev) => {
+  const f = ev.target.files && ev.target.files[0];
+  if(f) importAll(f);
+  ev.target.value = '';                                  // permette di re-importare lo stesso file
+});
+el('bArchClear').addEventListener('click', clearDb);
+['fltMem','fltKind'].forEach((id) => { const e = el(id); if(e) e.addEventListener('change', applyArchFilters); });
+{ const q = el('fltQ'); if(q) q.addEventListener('input', applyArchFilters); }
+
+(async function boot(){
+  try{
+    const st = await ensureInit();
+    renderDbStat(st);                                    // STRATO D · stato motori nel pannello
+    if(!st.persistent){
+      // Non isolati / niente OPFS: il banco funziona, ma senza persistenza.
+      showBanner('<b>Persistenza OFF.</b> Per salvare gli esperimenti apri il lab con ' +
+                 '<b>avvia-lab.bat</b> (doppio click). Ora il banco funziona lo stesso, ma i dati ' +
+                 'NON sopravvivono alla chiusura (SQLite in-memory).');
+    }
+    await refreshArchive();                              // popola anche «esperimenti» nello stato
+    archStatus(st.persistent ? 'Database pronto (persistente).' : 'Database in-memory (non persistente).');
+  }catch(err){
+    // Import/init falliti (tipico: aperto senza lanciatore). Banco intatto.
+    const box = el('dbStat'); if(box) box.innerHTML = '<span class="no">database non disponibile</span>';
+    showBanner('<b>Archivio non disponibile.</b> Apri il lab con <b>avvia-lab.bat</b> ' +
+               '(doppio click) per la persistenza. Il banco resta pienamente utilizzabile. ' +
+               '<span style="color:#8aa">(' + (err.message||err) + ')</span>');
+    archStatus('Database non disponibile: solo simulazione.');
+  }
+})();
+</script>
+
+<!-- =====================================================================
+     STRATO C · TAVOLO DI ANALISI — motore OLAP DuckDB (tipo-ClickHouse).
+     <script type="module"> SEPARATO e indipendente: non tocca il motore di
+     simulazione (script classico) né il modulo-ponte dello Strato B. Importa
+     lo STESSO ./lib/dati.js (i moduli ESM sono cache-ati: il singleton `Dati`
+     e il suo stato sono condivisi; Dati.init() è idempotente).
+       - Dati.loadIntoDuck()  copia runs+metrics dentro runs_olap / metrics_olap
+       - Dati.duck(sql)       esegue query analitiche e ritorna array di oggetti
+     Tutto offline. Ogni errore SQL è catturato e mostrato in chiaro: la pagina
+     non si rompe mai.
+
+     SCHEMA OLAP (creato da loadIntoDuck in lib/dati.js):
+       runs_olap(id BIGINT, experiment VARCHAR, kind VARCHAR, created_at VARCHAR,
+                 config_json VARCHAR, tags VARCHAR, notes VARCHAR)
+       metrics_olap(run_id BIGINT, key VARCHAR, value DOUBLE)
+         key ∈ {steps, memSize, reached, finalDist}  (formato LONG key/value)
+     I parametri (mem A/B, goalPull, noise, seed) vivono nei TAG del run come
+     testo "mem:A,seed:1337,goalPull:0.95,noise:0.03,grp:..." → li estraiamo con
+     regexp_extract (funzione CORE di DuckDB, nessuna extension richiesta).
+     ===================================================================== -->
+<script type="module">
+"use strict";
+
+/* Import DINAMICO di Dati (stesso singleton dello Strato B, cache-ato). */
+let DatiC = null;
+let initPromiseC = null;
+let duckLoaded = false;          // true dopo il primo loadIntoDuck riuscito
+let lastRows = null;             // ultimo risultato (per export CSV/JSON)
+let lastMeta = { sql:'', ms:0 }; // meta ultima query
+
+const COL_A = '#5ee0c0', COL_B = '#ffb14e';   // A teal / B arancio (coerenza tema)
+
+const elc = (id) => document.getElementById(id);
+function anlyStatus(msg){ const s = elc('anlyStatus'); if(s) s.textContent = msg || ''; }
+function anlyError(msg){ const e = elc('anlyErr'); if(e) e.textContent = msg || ''; }
+
+function ensureInitC(){
+  if(initPromiseC) return initPromiseC;
+  initPromiseC = (async () => {
+    const mod = await import('./lib/dati.js');   // stesso ESM dello Strato A/B
+    DatiC = mod.default || mod.Dati;
+    await DatiC.init();                          // idempotente (no doppio init)
+    return DatiC;
+  })();
+  return initPromiseC;
+}
+
+/* =====================================================================
+   QUERY DELLE ANALISI PRONTE.
+   Ogni query pivota metrics_olap (LONG) in colonne con MAX(CASE WHEN key=...)
+   e ricava mem/goalPull/noise dai tag con regexp_extract. TRY_CAST evita che
+   un tag malformato rompa l'intera query (ritorna NULL invece di errore).
+   ===================================================================== */
+const Q = {
+  // Esempio pre-compilato: ultimi 25 run con metriche pivotate + parametri dai tag.
+  esempio:
+`-- ESEMPIO · ultimi 25 run: metriche pivotate + parametri estratti dai tag
+SELECT r.id,
+       r.kind,
+       regexp_extract(r.tags, 'mem:([AB])', 1)                              AS mem,
+       TRY_CAST(regexp_extract(r.tags, 'goalPull:([0-9.eE+-]+)', 1) AS DOUBLE) AS goalPull,
+       TRY_CAST(regexp_extract(r.tags, 'noise:([0-9.eE+-]+)', 1)    AS DOUBLE) AS noise,
+       MAX(CASE WHEN m.key = 'steps'   THEN m.value END)                     AS steps,
+       MAX(CASE WHEN m.key = 'memSize' THEN m.value END)                     AS memSize,
+       MAX(CASE WHEN m.key = 'reached' THEN m.value END)                     AS reached
+FROM runs_olap r
+LEFT JOIN metrics_olap m ON m.run_id = r.id
+GROUP BY r.id, r.kind, r.tags
+ORDER BY r.id DESC
+LIMIT 25;`,
+
+  // A) A vs B: chi vince per goalPull — conteggio reached A/B + passi medi A/B.
+  win:
+`-- A vs B: chi vince per goalPull (conteggio goal raggiunti + passi medi)
+WITH mp AS (
+  SELECT run_id,
+         MAX(CASE WHEN key = 'steps'   THEN value END) AS steps,
+         MAX(CASE WHEN key = 'reached' THEN value END) AS reached
+  FROM metrics_olap GROUP BY run_id
+),
+r AS (
+  SELECT id,
+         regexp_extract(tags, 'mem:([AB])', 1)                                 AS mem,
+         TRY_CAST(regexp_extract(tags, 'goalPull:([0-9.eE+-]+)', 1) AS DOUBLE) AS goalPull
+  FROM runs_olap
+)
+SELECT r.goalPull,
+       CAST(SUM(CASE WHEN r.mem = 'A' AND mp.reached = 1 THEN 1 ELSE 0 END) AS BIGINT) AS A_reached,
+       CAST(SUM(CASE WHEN r.mem = 'B' AND mp.reached = 1 THEN 1 ELSE 0 END) AS BIGINT) AS B_reached,
+       CAST(SUM(CASE WHEN r.mem = 'A' THEN 1 ELSE 0 END)                    AS BIGINT) AS A_run,
+       CAST(SUM(CASE WHEN r.mem = 'B' THEN 1 ELSE 0 END)                    AS BIGINT) AS B_run,
+       ROUND(AVG(CASE WHEN r.mem = 'A' THEN mp.steps END), 1)          AS A_passi_medi,
+       ROUND(AVG(CASE WHEN r.mem = 'B' THEN mp.steps END), 1)          AS B_passi_medi
+FROM r JOIN mp ON mp.run_id = r.id
+WHERE r.goalPull IS NOT NULL
+GROUP BY r.goalPull
+ORDER BY r.goalPull;`,
+
+  // B) Passi medi/min/max per tipo di memoria.
+  steps:
+`-- Passi al goal per tipo di memoria (media / min / max)
+WITH mp AS (
+  SELECT run_id, MAX(CASE WHEN key = 'steps' THEN value END) AS steps
+  FROM metrics_olap GROUP BY run_id
+),
+r AS ( SELECT id, regexp_extract(tags, 'mem:([AB])', 1) AS mem FROM runs_olap )
+SELECT r.mem                       AS memoria,
+       COUNT(*)                    AS n_run,
+       ROUND(AVG(mp.steps), 1)     AS passi_medi,
+       MIN(mp.steps)               AS passi_min,
+       MAX(mp.steps)               AS passi_max
+FROM r JOIN mp ON mp.run_id = r.id
+WHERE r.mem IN ('A', 'B')
+GROUP BY r.mem
+ORDER BY r.mem;`,
+
+  // C) Memoria usata (memSize) media per tipo.
+  mem:
+`-- Memoria usata (|memoria|) media per tipo A vs B
+WITH mp AS (
+  SELECT run_id, MAX(CASE WHEN key = 'memSize' THEN value END) AS memSize
+  FROM metrics_olap GROUP BY run_id
+),
+r AS ( SELECT id, regexp_extract(tags, 'mem:([AB])', 1) AS mem FROM runs_olap )
+SELECT r.mem                         AS memoria,
+       COUNT(*)                      AS n_run,
+       ROUND(AVG(mp.memSize), 1)     AS memSize_media,
+       MIN(mp.memSize)               AS memSize_min,
+       MAX(mp.memSize)               AS memSize_max
+FROM r JOIN mp ON mp.run_id = r.id
+WHERE r.mem IN ('A', 'B')
+GROUP BY r.mem
+ORDER BY r.mem;`,
+
+  // D) Tasso di successo (% reached) per livello di rumore, per lato A/B.
+  noise:
+`-- Tasso di successo (% goal raggiunti) per livello di rumore
+WITH mp AS (
+  SELECT run_id, MAX(CASE WHEN key = 'reached' THEN value END) AS reached
+  FROM metrics_olap GROUP BY run_id
+),
+r AS (
+  SELECT id,
+         regexp_extract(tags, 'mem:([AB])', 1)                              AS mem,
+         TRY_CAST(regexp_extract(tags, 'noise:([0-9.eE+-]+)', 1) AS DOUBLE) AS noise
+  FROM runs_olap
+)
+SELECT r.noise,
+       ROUND(100.0 * AVG(CASE WHEN r.mem = 'A' THEN mp.reached END), 1) AS A_successo_pct,
+       ROUND(100.0 * AVG(CASE WHEN r.mem = 'B' THEN mp.reached END), 1) AS B_successo_pct,
+       ROUND(100.0 * AVG(mp.reached), 1)                                AS successo_pct_tot,
+       COUNT(*)                                                         AS n_run
+FROM r JOIN mp ON mp.run_id = r.id
+WHERE r.noise IS NOT NULL
+GROUP BY r.noise
+ORDER BY r.noise;`
+};
+
+/* =====================================================================
+   CARICAMENTO DATI: SQLite -> DuckDB (runs_olap / metrics_olap).
+   force=true dal bottone; auto (force=false) alla prima query se mai caricato.
+   ===================================================================== */
+async function loadDuck(force){
+  if(duckLoaded && !force) return true;
+  await ensureInitC();
+  anlyStatus('Caricamento dati in DuckDB…');
+  const info = await DatiC.loadIntoDuck();          // copia runs+metrics
+  duckLoaded = true;
+  elc('anlyLoadInfo').textContent =
+    'caricati ' + info.runs + ' run · ' + info.metrics + ' metriche';
+  anlyStatus(info.runs ? 'Dati pronti in DuckDB.' : 'Nessun run salvato: esegui e salva un Pair/Sweep.');
+  return true;
+}
+
+/* =====================================================================
+   ESECUZIONE QUERY + RENDERING TABELLA A COLONNE DINAMICHE.
+   ===================================================================== */
+function renderTable(rows){
+  const head = elc('anlyHead'), body = elc('anlyBody');
+  head.innerHTML = ''; body.innerHTML = '';
+  if(!rows || !rows.length){
+    body.innerHTML = '<tr><td class="empty">nessuna riga restituita.</td></tr>';
+    return;
+  }
+  const cols = Object.keys(rows[0]);
+  const htr = document.createElement('tr');
+  for(const c of cols){ const th = document.createElement('th'); th.textContent = c; htr.appendChild(th); }
+  head.appendChild(htr);
+  for(const row of rows){
+    const tr = document.createElement('tr');
+    for(const c of cols){
+      const v = row[c];
+      const isNum = (typeof v === 'number') && isFinite(v);
+      const td = document.createElement('td');
+      if(!isNum) td.className = 's';
+      td.textContent = (v === null || v === undefined) ? '—'
+        : (isNum && !Number.isInteger(v) ? String(Math.round(v * 10000) / 10000) : String(v));
+      tr.appendChild(td);
+    }
+    body.appendChild(tr);
+  }
+}
+
+async function runSql(sql){
+  anlyError('');
+  const q = (sql !== undefined ? sql : elc('anlySql').value).trim();
+  if(!q){ anlyError('Box SQL vuoto: scrivi una query o premi un\'analisi pronta.'); return; }
+  try{
+    await loadDuck(false);                    // auto-load alla prima esecuzione
+    const t0 = performance.now();
+    const rows = await DatiC.duck(q);         // array di oggetti (BigInt già normalizzati)
+    const ms = Math.round(performance.now() - t0);
+    lastRows = rows; lastMeta = { sql:q, ms };
+    renderTable(rows);
+    drawChart(rows);
+    elc('anlyMeta').textContent = rows.length + ' righe · ' + ms + ' ms';
+    anlyStatus('Query eseguita.');
+  }catch(err){
+    // Errore SQL mostrato in chiaro: la pagina resta viva.
+    lastRows = null;
+    anlyError('Errore SQL: ' + (err && err.message ? err.message : String(err)));
+    elc('anlyMeta').textContent = '';
+    anlyStatus('Query fallita (vedi errore sopra).');
+  }
+}
+
+/* Riempi il box SQL con una preset ed esegui subito. */
+async function preset(key){
+  elc('anlySql').value = Q[key];
+  await runSql(Q[key]);
+}
+
+/* =====================================================================
+   GRAFICO — canvas coerente col tema. Auto-rileva la forma del risultato:
+     • se ci sono colonne appaiate A_* / B_* numeriche + un asse X numerico
+       (goalPull, noise, value, seed, maxSteps, blobs) → LINEE A vs B;
+     • altrimenti se c'è una categoria (memoria/mem/kind) + una colonna
+       numerica → BARRE (A teal / B arancio quando la categoria è A/B);
+     • altrimenti nessun grafico (solo tabella).
+   ===================================================================== */
+const chartCv = elc('anlyChart'), cg = chartCv.getContext('2d');
+
+function isNumCol(rows, c){ return rows.every((r)=> r[c] === null || (typeof r[c] === 'number' && isFinite(r[c]))); }
+function clampc(v,lo,hi){ return v<lo?lo:(v>hi?hi:v); }
+
+function drawChart(rows){
+  const W = chartCv.width, H = chartCv.height;
+  cg.fillStyle = '#0a0e12'; cg.fillRect(0,0,W,H);
+  const cap = elc('anlyChartCap');
+  cap.textContent = '';
+  if(!rows || !rows.length){
+    cg.fillStyle = '#5b6b78'; cg.font = '12px Consolas,monospace';
+    cg.fillText('Nessun dato da plottare.', 18, H/2);
+    return;
+  }
+  const cols = Object.keys(rows[0]);
+
+  // 1) prova coppie A_* / B_* per grafico a linee.
+  const aCols = cols.filter((c)=> /^A[_-]/i.test(c) && isNumCol(rows,c));
+  let pair = null;
+  for(const a of aCols){
+    const suffix = a.slice(2);
+    const b = cols.find((c)=> new RegExp('^B[_-]' + suffix.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '$','i').test(c));
+    if(b && isNumCol(rows,b)){ pair = { a, b, suffix }; break; }
+  }
+  const xPref = ['goalPull','noise','value','seed','maxSteps','blobs'];
+  if(pair){
+    let xcol = cols.find((c)=> xPref.indexOf(c) >= 0 && isNumCol(rows,c));
+    if(!xcol) xcol = cols.find((c)=> c !== pair.a && c !== pair.b && isNumCol(rows,c));
+    if(xcol){ lineChart(rows, xcol, pair.a, pair.b);
+      cap.textContent = 'Linee · X=' + xcol + ' · A=' + pair.a + ' (teal) vs B=' + pair.b + ' (arancio).';
+      return; }
+  }
+
+  // 2) fallback a barre: categoria testuale + colonna-valore "sensata".
+  //    Categoria: preferisci memoria/mem, altrimenti primo testo con ≤16 valori.
+  //    Valore: preferisci una metrica aggregata (medi/media/pct/passi/memSize),
+  //    evita conteggi/estremi/id (n_run, count, min, max, id) e gli assi X.
+  const catCol = cols.find((c)=> /^(memoria|mem|kind)$/i.test(c) && !isNumCol(rows,c))
+      || cols.find((c)=> !isNumCol(rows,c) && new Set(rows.map((r)=>r[c])).size <= 16);
+  const prefRe = /(medi|media|avg|mean|pct|perc|success|tasso|memsize|passi|steps)/i;
+  const badRe  = /(^id$|_run$|^n_run$|count|_min$|_max$|(^|_)min$|(^|_)max$|run_id)/i;
+  const valCol =
+        cols.find((c)=> isNumCol(rows,c) && xPref.indexOf(c) < 0 && prefRe.test(c))
+     || cols.find((c)=> isNumCol(rows,c) && xPref.indexOf(c) < 0 && !badRe.test(c))
+     || cols.find((c)=> isNumCol(rows,c));
+  if(catCol && valCol){
+    barChart(rows, catCol, valCol);
+    cap.textContent = 'Barre · categoria=' + catCol + ' · valore=' + valCol + '.';
+    return;
+  }
+
+  cg.fillStyle = '#5b6b78'; cg.font = '12px Consolas,monospace';
+  cg.fillText('Risultato non plottabile: mostro solo la tabella.', 18, H/2);
+}
+
+function axes(ml,mr,mt,mb,W,H){ return { ml,mr,mt,mb, pw:W-ml-mr, ph:H-mt-mb }; }
+
+function lineChart(rows, xcol, aCol, bCol){
+  const W = chartCv.width, H = chartCv.height;
+  const A = axes(56,14,14,38,W,H);
+  const xs = rows.map((r)=> r[xcol]);
+  const ya = rows.map((r)=> r[aCol]);
+  const yb = rows.map((r)=> r[bCol]);
+  const allY = ya.concat(yb).filter((v)=> v !== null && isFinite(v));
+  const xmin = Math.min.apply(null, xs), xmax = Math.max.apply(null, xs);
+  const ymax = Math.max(1, Math.max.apply(null, allY)) * 1.08;
+  const X = (v)=> A.ml + (xmax > xmin ? (v - xmin)/(xmax - xmin) : 0.5) * A.pw;
+  const Y = (v)=> A.mt + A.ph - (v/ymax) * A.ph;
+
+  cg.strokeStyle = 'rgba(94,224,192,0.10)'; cg.lineWidth = 1;
+  cg.fillStyle = '#5b6b78'; cg.font = '10px Consolas,monospace';
+  for(let i=0;i<=4;i++){
+    const yv = ymax*i/4, y = Y(yv);
+    cg.beginPath(); cg.moveTo(A.ml,y); cg.lineTo(W-A.mr,y); cg.stroke();
+    cg.textAlign = 'right'; cg.fillText(String(Math.round(yv)), A.ml-6, y+3);
+  }
+  for(let i=0;i<=4;i++){
+    const xv = xmin + (xmax-xmin)*i/4, x = X(xv);
+    cg.beginPath(); cg.moveTo(x,A.mt); cg.lineTo(x,A.mt+A.ph); cg.stroke();
+    cg.textAlign = 'center'; cg.fillText(String(Math.round(xv*1000)/1000), x, A.mt+A.ph+14);
+  }
+  cg.strokeStyle = 'rgba(94,224,192,0.35)';
+  cg.beginPath(); cg.moveTo(A.ml,A.mt); cg.lineTo(A.ml,A.mt+A.ph); cg.lineTo(W-A.mr,A.mt+A.ph); cg.stroke();
+  cg.fillStyle = '#aebcc6'; cg.textAlign = 'center';
+  cg.fillText(xcol + ' →', A.ml + A.pw/2, H-6);
+
+  function line(arr, col){
+    cg.strokeStyle = col; cg.lineWidth = 1.8; cg.beginPath();
+    let started = false;
+    for(let i=0;i<rows.length;i++){
+      if(arr[i] === null || !isFinite(arr[i])) continue;
+      const x = X(xs[i]), y = Y(arr[i]);
+      if(!started){ cg.moveTo(x,y); started = true; } else cg.lineTo(x,y);
+    }
+    cg.stroke();
+    cg.fillStyle = col;
+    for(let i=0;i<rows.length;i++){
+      if(arr[i] === null || !isFinite(arr[i])) continue;
+      cg.beginPath(); cg.arc(X(xs[i]), Y(arr[i]), 2.6, 0, Math.PI*2); cg.fill();
+    }
+  }
+  line(ya, COL_A); line(yb, COL_B);
+  cg.font = '11px Consolas,monospace'; cg.textAlign = 'left';
+  cg.fillStyle = COL_A; cg.fillRect(W-A.mr-150, A.mt+6, 14, 3);  cg.fillText(aCol, W-A.mr-130, A.mt+11);
+  cg.fillStyle = COL_B; cg.fillRect(W-A.mr-150, A.mt+22, 14, 3); cg.fillText(bCol, W-A.mr-130, A.mt+27);
+}
+
+function barChart(rows, catCol, valCol){
+  const W = chartCv.width, H = chartCv.height;
+  const A = axes(56,14,14,44,W,H);
+  const cats = rows.map((r)=> String(r[catCol]));
+  const vals = rows.map((r)=> (r[valCol] === null ? 0 : r[valCol]));
+  const ymax = Math.max(1, Math.max.apply(null, vals)) * 1.12;
+  const Y = (v)=> A.mt + A.ph - (v/ymax) * A.ph;
+
+  cg.strokeStyle = 'rgba(94,224,192,0.10)'; cg.lineWidth = 1;
+  cg.fillStyle = '#5b6b78'; cg.font = '10px Consolas,monospace'; cg.textAlign = 'right';
+  for(let i=0;i<=4;i++){
+    const yv = ymax*i/4, y = Y(yv);
+    cg.beginPath(); cg.moveTo(A.ml,y); cg.lineTo(W-A.mr,y); cg.stroke();
+    cg.fillText(String(Math.round(yv)), A.ml-6, y+3);
+  }
+  cg.strokeStyle = 'rgba(94,224,192,0.35)';
+  cg.beginPath(); cg.moveTo(A.ml,A.mt); cg.lineTo(A.ml,A.mt+A.ph); cg.lineTo(W-A.mr,A.mt+A.ph); cg.stroke();
+
+  const n = rows.length;
+  const slot = A.pw / n, bw = clampc(slot*0.55, 6, 90);
+  for(let i=0;i<n;i++){
+    const cx = A.ml + slot*(i+0.5);
+    const h = (vals[i]/ymax) * A.ph;
+    const col = cats[i] === 'A' ? COL_A : (cats[i] === 'B' ? COL_B : (i % 2 ? COL_B : COL_A));
+    cg.fillStyle = col;
+    cg.fillRect(cx - bw/2, A.mt + A.ph - h, bw, h);
+    cg.fillStyle = '#aebcc6'; cg.font = '10px Consolas,monospace'; cg.textAlign = 'center';
+    cg.fillText(cats[i], cx, A.mt + A.ph + 14);
+    cg.fillStyle = col;
+    cg.fillText(String(Math.round(vals[i]*100)/100), cx, A.mt + A.ph - h - 4);
+  }
+  cg.fillStyle = '#aebcc6'; cg.textAlign = 'center';
+  cg.fillText(catCol + ' · ' + valCol, A.ml + A.pw/2, H-6);
+}
+
+/* =====================================================================
+   EXPORT — CSV e JSON del risultato corrente (download offline via Blob).
+   ===================================================================== */
+function downloadC(name, text, mime){
+  const url = URL.createObjectURL(new Blob([text], { type:mime }));
+  const el = document.createElement('a');
+  el.href = url; el.download = name;
+  document.body.appendChild(el); el.click(); el.remove();
+  setTimeout(()=> URL.revokeObjectURL(url), 1000);
+}
+function csvCell(v){
+  if(v === null || v === undefined) return '';
+  const s = String(v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+}
+function exportCsvC(){
+  if(!lastRows || !lastRows.length){ anlyStatus('Niente da esportare: esegui prima una query.'); return; }
+  const cols = Object.keys(lastRows[0]);
+  let csv = cols.map(csvCell).join(',') + '\n';
+  for(const row of lastRows) csv += cols.map((c)=> csvCell(row[c])).join(',') + '\n';
+  downloadC('void-lab-analisi.csv', csv, 'text/csv');
+  anlyStatus('CSV esportato.');
+}
+function exportJsonC(){
+  if(!lastRows || !lastRows.length){ anlyStatus('Niente da esportare: esegui prima una query.'); return; }
+  downloadC('void-lab-analisi.json', JSON.stringify(lastRows, null, 2), 'application/json');
+  anlyStatus('JSON esportato.');
+}
+
+/* =====================================================================
+   WIRING dei bottoni dello Strato C.
+   ===================================================================== */
+elc('bAnlyLoad').addEventListener('click', async () => {
+  try{ await loadDuck(true); }
+  catch(err){ anlyError('Errore caricamento dati: ' + (err && err.message ? err.message : err)); anlyStatus('Caricamento fallito.'); }
+});
+elc('bAnlyRun').addEventListener('click', () => runSql());
+elc('bAnlyWin').addEventListener('click', () => preset('win'));
+elc('bAnlySteps').addEventListener('click', () => preset('steps'));
+elc('bAnlyMem').addEventListener('click', () => preset('mem'));
+elc('bAnlyNoise').addEventListener('click', () => preset('noise'));
+elc('bAnlyCsv').addEventListener('click', exportCsvC);
+elc('bAnlyJson').addEventListener('click', exportJsonC);
+
+/* =====================================================================
+   STRATO D · sincronizzazione col database (eventi dal modulo-ponte).
+   - «db-cleared»: dopo Svuota database → ricarico (tabelle OLAP vuote) e
+     azzero tabella/grafico, così il tavolo di analisi si svuota subito.
+   - «db-changed»: dopo Importa → invalido la cache, così la prossima
+     query/preset ricarica automaticamente i dati aggiornati.
+   ===================================================================== */
+window.addEventListener('voidlab:db-cleared', async () => {
+  duckLoaded = false; lastRows = null;
+  try{ await loadDuck(true); }catch(_e){}                 // runs_olap/metrics_olap ora vuote
+  renderTable([]); drawChart(null);
+  elc('anlyMeta').textContent = '';
+  anlyStatus('Database svuotato: analisi azzerata.');
+});
+window.addEventListener('voidlab:db-changed', () => {
+  duckLoaded = false;                                     // la prossima esecuzione ricarica i dati
+  anlyStatus('Dati importati: premi «Carica/aggiorna dati» o un\'analisi per aggiornare.');
+});
+
+/* Query di esempio pre-compilata nel box + grafico placeholder. */
+elc('anlySql').value = Q.esempio;
+drawChart(null);
+</script>

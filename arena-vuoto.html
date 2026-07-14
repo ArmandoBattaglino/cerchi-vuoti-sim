@@ -1,0 +1,744 @@
+<meta charset="utf-8">
+<title>Arena del Vuoto — agenti-pallina embodied</title>
+<style>
+  /* ---- tema scuro coerente col resto del progetto (modello-vuoto.html) ---- */
+  :root{ --bg:#0a0e12; --panel:#111820; --dim:#5b6b78; --accent:#5ee0c0; --blue:#7fd4ff; --org:#ffb14e; --pur:#c88bff; --line:#1c2833; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:#dfe8ee; font:13px/1.4 -apple-system,Segoe UI,Roboto,sans-serif; }
+  h1{ font-size:15px; margin:14px 16px 4px; color:var(--accent); font-weight:600; }
+  .sub{ margin:0 16px 12px; color:var(--dim); font-size:12px; max-width:900px; }
+  .wrap{ display:flex; gap:16px; padding:0 16px 24px; align-items:flex-start; flex-wrap:wrap; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px; }
+  .lab{ color:var(--dim); font-size:11px; margin-bottom:6px; text-transform:uppercase; letter-spacing:.4px; }
+  canvas#arena{ display:block; border-radius:8px; background:#000; image-rendering:auto; width:720px; height:440px; }
+  .ctrl{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; width:340px; }
+  .row{ display:flex; align-items:center; justify-content:space-between; margin:8px 0; gap:8px; }
+  button{ background:#17222c; color:#dfe8ee; border:1px solid #26333f; border-radius:7px; padding:7px 10px; cursor:pointer; font-size:12px; }
+  button:hover{ border-color:var(--accent); }
+  button.on{ background:var(--accent); color:#04120e; border-color:var(--accent); font-weight:600; }
+  input[type=range]{ width:150px; accent-color:var(--accent); }
+  .val{ color:var(--accent); font-variant-numeric:tabular-nums; min-width:44px; text-align:right; }
+  .note{ color:var(--dim); font-size:11px; margin-top:10px; line-height:1.5; }
+  .seg{ display:flex; gap:6px; }
+  .seg button{ flex:1; }
+  /* tabella stato agenti */
+  table{ border-collapse:collapse; width:100%; font-size:12px; margin-top:4px; }
+  th,td{ text-align:right; padding:4px 8px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; }
+  th{ color:var(--dim); font-weight:500; text-transform:uppercase; font-size:10px; letter-spacing:.3px; }
+  td.name{ text-align:left; }
+  .dot{ display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+  .tag{ font-size:10px; padding:1px 5px; border-radius:4px; border:1px solid var(--line); color:var(--dim); }
+  .tag.goal{ color:var(--org); border-color:#3a2c14; }
+  .tag.free{ color:var(--blue); border-color:#123040; }
+  .tag.reached{ color:var(--accent); border-color:#123a30; background:#0e1a16; }
+  .barwrap{ background:#0a1218; border:1px solid var(--line); border-radius:4px; height:8px; width:70px; overflow:hidden; display:inline-block; vertical-align:middle; }
+  .bar{ height:100%; }
+</style>
+
+<h1>Arena del Vuoto — agenti-pallina embodied che regolano la propria sorpresa</h1>
+<p class="sub">Ogni pallina nasce con una <b>forma innata fissa</b> (raggio di percezione R + lente di riduzione). La <b>SORPRESA = novità</b>: distanza del percetto corrente dal più vicino in memoria. Un <b>vuoto regolatore</b> sterza il movimento per tenere la sorpresa locale al <b>setpoint S*</b> (che sale col crescere della memoria). Con obiettivo: curiosità + tiro verso il target. Senza: pura esplorazione.</p>
+
+<div class="wrap">
+  <div class="card">
+    <div class="lab">Arena · campo scalare con vuoti (blob covalenti) · pallini = agenti · scia = colore · marker = goal</div>
+    <canvas id="arena" width="720" height="440"></canvas>
+  </div>
+
+  <div class="ctrl">
+    <div class="lab">Genera agente</div>
+    <div class="row seg">
+      <button id="bGenGoal">+ Con obiettivo</button>
+      <button id="bGenFree">+ Senza obiettivo</button>
+    </div>
+    <div class="row"><button id="bRun" class="on" style="flex:1">Pausa</button><button id="bReset" style="flex:1">Reset (rimuovi tutti)</button></div>
+    <div class="row"><span>Velocità simulazione</span><input id="sSpeed" type="range" min="1" max="8" step="1" value="2"><span class="val" id="vSpeed">2x</span></div>
+    <div class="row"><span>Mondo dinamico (campo deriva)</span><button id="bDyn">OFF</button></div>
+    <div class="row"><span>Setpoint deriva (asticella sale)</span><button id="bDrift" class="on">ON</button></div>
+    <div class="note">
+      S* parte basso (neonato): tutto è novità → scrive in memoria le regioni <b>strutturate</b> (il rumore piatto è escluso). Man mano che impara, S* sale e cerca sorpresa maggiore.
+      Passo: <b id="mStep" style="color:var(--accent)">0</b> · agenti: <b id="mCount" style="color:var(--accent)">0</b>
+      <br><br>Verifica headless: <code style="color:var(--blue)">window.__advance(n)</code>, <code style="color:var(--blue)">window.__agents()</code>, <code style="color:var(--blue)">window.__spawn({goal:true})</code>.
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="lab">Oscilloscopio X-Y · sonda sui segnali vivi degli agenti (un colore per agente)</div>
+    <canvas id="scope" width="340" height="340" style="background:#000;border-radius:8px;display:block"></canvas>
+    <div class="row" style="margin-top:8px"><span>X ←</span>
+      <select id="scopeX" style="flex:1;background:#0b0f0f;color:#cfe8e0;border:1px solid #1c2833;border-radius:6px;padding:5px;font:12px monospace"></select></div>
+    <div class="row"><span>Y ←</span>
+      <select id="scopeY" style="flex:1;background:#0b0f0f;color:#cfe8e0;border:1px solid #1c2833;border-radius:6px;padding:5px;font:12px monospace"></select></div>
+    <div class="row"><span>persistenza</span><input id="scopeP" type="range" min="0.70" max="0.99" step="0.01" value="0.93"><span class="val" id="scopePv">0.93</span></div>
+    <div class="row"><span>guadagno</span><input id="scopeG" type="range" min="0.3" max="3" step="0.1" value="1"><span class="val" id="scopeGv">1.0</span></div>
+  </div>
+
+  <div class="card" style="flex:1; min-width:420px;">
+    <div class="lab">Stato agenti</div>
+    <table>
+      <thead><tr>
+        <th class="name">Agente</th><th>Sorpresa</th><th>S*</th><th>Memoria</th><th>Dist. goal</th><th>Copertura</th>
+      </tr></thead>
+      <tbody id="tbody"><tr><td class="name" colspan="6" style="color:var(--dim);text-align:left">Nessun agente. Premi “Genera agente”.</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+"use strict";
+(function(){
+/* =====================================================================
+   RNG SEEDATO (mulberry32) — riproducibilità: il core NON usa Math.random
+   né Date.now. La casualità sta SOLO nella forma innata alla generazione.
+   ===================================================================== */
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+let rng = mulberry32(1337);           // seme globale fisso
+function rnd(){ return rng(); }
+function rrange(a,b){ return a + (b-a)*rnd(); }
+
+/* clamp universale — usato ovunque per la STABILITÀ NUMERICA assoluta */
+function clamp(v,lo,hi){ return v<lo?lo:(v>hi?hi:v); }
+function safe(v,fb){ return Number.isFinite(v)?v:fb; }
+function saturate(v){ return v<0?0:(v>1?1:v); }        // taglio duro in [0,1]
+// quantile mobile di un array (per ancorare S* alla sorpresa realmente osservata)
+function quantile(arr, q){
+  if(!arr || arr.length===0) return 0;
+  const s=Array.prototype.slice.call(arr).sort(function(a,b){return a-b;});
+  const idx=clamp(Math.round((s.length-1)*q),0,s.length-1);
+  return s[idx];
+}
+
+/* =====================================================================
+   MONDO / ARENA — campo scalare in [0,1], W x H, con vuoti (blob morbidi).
+   ===================================================================== */
+const W=180, H=110;                    // risoluzione del campo (~180x110)
+const field = new Float32Array(W*H);
+let blobs=[];                          // blob covalenti che generano i vuoti/pieni
+
+function initField(){
+  // blob procedurali (seme dedicato per un mondo ripetibile a ogni reset)
+  const brng = mulberry32(9021);
+  blobs=[];
+  const n = 7;
+  for(let i=0;i<n;i++){
+    blobs.push({
+      x: 0.1*W + brng()*0.8*W, y: 0.1*H + brng()*0.8*H,
+      r: 9 + brng()*15,                // raggio del blob (più piccolo => vuoti visibili)
+      amp: 0.55 + brng()*0.5,          // ampiezza (contributo)
+      // velocità di deriva lenta (usata solo se "mondo dinamico" ON)
+      vx: (brng()-0.5)*0.05, vy:(brng()-0.5)*0.05
+    });
+  }
+  rasterizeField();
+}
+function rasterizeField(){
+  // campo = somma di bump gaussiani morbidi (stile covalente), clampato [0,1]
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      let v=0;
+      for(let b=0;b<blobs.length;b++){
+        const bb=blobs[b];
+        const dx=x-bb.x, dy=y-bb.y;
+        const d2=dx*dx+dy*dy;
+        const s=bb.r*bb.r;
+        v += bb.amp*Math.exp(-d2/(2*s));
+      }
+      field[y*W+x] = clamp(v,0,1);     // clamp: niente valori che esplodono
+    }
+  }
+}
+function driftField(){
+  // deriva lenta dei blob (mondo dinamico); posizioni clampate ai bordi
+  for(const b of blobs){
+    b.x = clamp(b.x + b.vx, 0, W);
+    b.y = clamp(b.y + b.vy, 0, H);
+    if(b.x<=0||b.x>=W) b.vx=-b.vx;     // rimbalzo dolce
+    if(b.y<=0||b.y>=H) b.vy=-b.vy;
+  }
+  rasterizeField();
+}
+
+/* campionamento bilineare del campo, con clamp ai bordi (mai fuori range) */
+function sampleField(x,y){
+  x=clamp(x,0,W-1.001); y=clamp(y,0,H-1.001);
+  const x0=x|0, y0=y|0, fx=x-x0, fy=y-y0;
+  const i=y0*W+x0;
+  const a=field[i], b=field[i+1], c=field[i+W], d=field[i+W+1];
+  return a*(1-fx)*(1-fy)+b*fx*(1-fy)+c*(1-fx)*fy+d*fx*fy;
+}
+
+/* =====================================================================
+   FORMA INNATA + PERCEZIONE
+   - pattern di campionamento (rosette a girasole) scalato dal raggio R innato
+   - lente innata: matrice L x M di pesi fissi alla nascita
+   Percetto = tanh(gain * Wlens·(raw - media))  poi normalizzato (L2).
+   ===================================================================== */
+const M=16;                            // punti di campionamento del patch
+const L=12;                            // lunghezza del percetto (vettore corto)
+// offset base a girasole (angolo aureo): stesso pattern, scalato da R per agente
+const baseOff=[];
+for(let i=0;i<M;i++){
+  const ang=i*2.399963229728653;
+  const rad=Math.sqrt((i+0.5)/M);
+  baseOff.push([Math.cos(ang)*rad, Math.sin(ang)*rad]);
+}
+
+const PALETTE=['#5ee0c0','#7fd4ff','#ffb14e','#c88bff','#ff7a9c','#9cff7a','#ffd24e','#4ec6ff','#ff9e5e','#b0ff5e'];
+let colorIdx=0;
+
+// costruisce la FORMA INNATA (fissa alla nascita) — unica fonte di casualità
+function makeInnate(){
+  const R = rrange(5, 13);             // raggio di percezione innato
+  const gain = rrange(0.6, 1.6);       // guadagno della lente
+  const Wlens = new Float32Array(L*M); // matrice di riduzione innata
+  for(let k=0;k<L*M;k++) Wlens[k]=(rnd()*2-1);
+  // fase/ritmo di vagabondaggio innati: rompono la simmetria in zone piatte
+  const wphase = rrange(0, Math.PI*2);
+  const wrate  = rrange(0.010, 0.030);
+  return {R, gain, Wlens, wphase, wrate};
+}
+
+// legge il patch e lo comprime nel percetto; ritorna anche la varianza locale
+const _perc = new Float32Array(L);
+function perceive(a, x, y){
+  const raw = a._raw;                  // buffer riutilizzato (no GC pressure)
+  let mean=0;
+  for(let m=0;m<M;m++){
+    const ox=baseOff[m][0]*a.R, oy=baseOff[m][1]*a.R;
+    const s=sampleField(x+ox, y+oy);
+    raw[m]=s; mean+=s;
+  }
+  mean/=M;
+  // varianza locale = misura di STRUTTURA (rumore piatto -> ~0)
+  let varr=0;
+  for(let m=0;m<M;m++){ const d=raw[m]-mean; varr+=d*d; }
+  varr/=M;
+  // proiezione tramite lente innata + tanh (bounded -> stabile)
+  let norm=0;
+  for(let l=0;l<L;l++){
+    let acc=0; const base=l*M;
+    for(let m=0;m<M;m++) acc += a.Wlens[base+m]*(raw[m]-mean);
+    const v=Math.tanh(a.gain*acc);
+    _perc[l]=v; norm+=v*v;
+  }
+  norm=Math.sqrt(norm);
+  const out=new Float32Array(L);
+  if(norm>1e-6){ for(let l=0;l<L;l++) out[l]=_perc[l]/norm; } // normalizza (unit)
+  return {percept:out, variance:varr};
+}
+
+/* distanza euclidea tra percetti (unit) e nearest-neighbor in memoria */
+function dist(p,q){ let s=0; for(let l=0;l<L;l++){ const d=p[l]-q[l]; s+=d*d; } return Math.sqrt(s); }
+function nearestDist(mem, p){
+  if(mem.length===0) return Infinity;
+  let best=Infinity;
+  for(let i=0;i<mem.length;i++){ const d=dist(mem[i].percept,p); if(d<best) best=d; }
+  return best;
+}
+const SREF=1.4;                        // scala: mappa la distanza a sorpresa [0,1]
+function surpriseFrom(minDist){
+  if(!Number.isFinite(minDist)) return 1.0;   // memoria vuota => novità massima
+  return clamp(minDist/SREF, 0, 1);
+}
+// GATE DI STRUTTURA: la normalizzazione L2 del percetto scarta la magnitudine,
+// così un patch quasi-piatto (il VUOTO, la cosa MENO nuova) diventa un versore di
+// puro rumore lontanissimo dalla memoria => falsa sorpresa massima. Correzione:
+// scala la sorpresa con la struttura locale (varianza). Patch sotto VAR_THR sono
+// "vuoto abituato" => sorpresa ~0 (noioso), non massima.
+function structGate(variance){ return saturate(variance/VAR_THR); }
+// sorpresa di un percetto = novità (distanza dalla memoria) MODULATA dalla struttura
+function surpriseOf(a, p){
+  return surpriseFrom(nearestDist(a.memory, p.percept)) * structGate(p.variance);
+}
+
+/* =====================================================================
+   PARAMETRI METABOLISMO / MOVIMENTO — tutti scelti per NON divergere
+   ===================================================================== */
+const MEMCAP   = 200;    // memoria BOUNDED: non cresce all'infinito
+const WRITE_S  = 0.13;   // soglia sorpresa per scrivere (novelty-gate): abbastanza bassa
+                         // da IMPARARE le regioni visitate -> la loro sorpresa cala ->
+                         // l'agente si annoia e prosegue (mangia la sorpresa, poi va oltre)
+const VAR_THR  = 0.0045; // soglia struttura: sotto = rumore piatto -> NON scrive
+const NDIR     = 8;      // direzioni candidate campionate dal vuoto regolatore
+const PROBE    = 6.0;    // distanza di sondaggio davanti all'agente
+const DEAD     = 0.06;   // banda morta attorno a S* (stato "flow")
+const INERTIA  = 0.62;   // inerzia del moto (abbassata: il regolatore deve poter inseguire S*)
+const CTRL_K   = 3.4;    // guadagno proporzionale del regolatore di sorpresa (batte l'inerzia)
+const ACC      = 0.36;   // guadagno di accelerazione
+const VMAX     = 0.95;   // clamp velocità (evita esplosioni)
+const CUR      = 0.50;   // peso curiosità (sterzata metabolica)
+const GOALG    = 0.95;   // peso tiro verso il goal (domina il netto: converge sempre)
+const REACH    = 3.5;    // raggio di "obiettivo raggiunto"
+const S_MIN=0.15, S_MAX=0.70;          // clamp del setpoint
+const REFF_BASE=0.7, REFF_GAIN=0.6, REFF_REF=0.30; // raggio d'azione effettivo dinamico
+const FAM_RATE=0.01, VOID_SOFT=0.30;   // familiarità (memoria sociale) cresce con l'esposizione;
+                                       // VOID_SOFT = solo smorzamento numerico (NON la forza:
+                                       // la forza è la sorpresa sociale = 1 - familiarità)
+
+// copertura: griglia grossolana di celle visitate
+const CGW=30, CGH=18, CGN=CGW*CGH;
+
+let agents=[];
+let step=0;
+
+function spawnAgent(hasGoal){
+  const inn=makeInnate();
+  const a={
+    id: agents.length,
+    color: PALETTE[colorIdx++ % PALETTE.length],
+    R: inn.R, gain: inn.gain, Wlens: inn.Wlens,
+    wphase: inn.wphase, wrate: inn.wrate,
+    _raw: new Float32Array(M),
+    // posizione e velocità (float)
+    px: rrange(W*0.15, W*0.85),
+    py: rrange(H*0.15, H*0.85),
+    vx: 0, vy: 0,
+    heading: rrange(0, Math.PI*2),
+    // stato cognitivo
+    memory: [],
+    surprise: 1.0,                     // neonato: tutto è novità
+    setpoint: 0.20,                    // S* iniziale basso
+    sHist: [],                         // storia sorpresa su patch strutturati (per ancorare S*)
+    percept: null, variance: 0,
+    // obiettivo
+    hasGoal: !!hasGoal,
+    goalX: 0, goalY: 0, reached:false,
+    distToGoal: 0,
+    // copertura + scia
+    visited: new Uint8Array(CGN), coverCount:0,
+    trail: [],
+    // MEMORIA SOCIALE: familiarità per-altro-agente (0=sconosciuto, 1=familiare).
+    // Cresce con l'esposizione. La sorpresa sociale = 1 - familiarità.
+    fam: {}
+  };
+  if(a.hasGoal){
+    a.goalX = rrange(W*0.1, W*0.9);
+    a.goalY = rrange(H*0.1, H*0.9);
+    a.distToGoal = Math.hypot(a.goalX-a.px, a.goalY-a.py); // nota da subito
+  }
+  agents.push(a);
+  return a;
+}
+
+/* stima la sorpresa in un punto (percetto locale vs memoria dell'agente) */
+function estimateSurprise(a,x,y){
+  const p=perceive(a,x,y);
+  return surpriseOf(a, p);
+}
+
+/* =====================================================================
+   UN PASSO DI SIMULAZIONE (deterministico) per un agente
+   ===================================================================== */
+function stepAgent(a, driftOn){
+  // 1) PERCEZIONE del patch locale
+  const p = perceive(a, a.px, a.py);
+  a.percept = p.percept; a.variance = p.variance;
+
+  // 2) SORPRESA = novità rispetto alla memoria, MODULATA dalla struttura locale
+  //    (il vuoto piatto legge sorpresa ~0, non massima — vedi structGate)
+  const localS = surpriseOf(a, p);
+  a.surprise = safe(localS, 0);
+
+  // 2b) campiona la distribuzione della sorpresa OTTENIBILE su patch STRUTTURATI:
+  //     serve ad ancorare S* a ciò che il mondo può davvero offrire (vedi punto 4)
+  if(a.variance > VAR_THR){
+    a.sHist.push(a.surprise);
+    if(a.sHist.length > 120) a.sHist.shift();
+  }
+
+  // 3) SCRITTURA NOVELTY-GATED: alta sorpresa E patch strutturato (non rumore piatto)
+  if(a.surprise > WRITE_S && a.variance > VAR_THR && a.memory.length < MEMCAP){
+    a.memory.push({percept:a.percept, x:a.px, y:a.py, energy:a.surprise});
+    // scrivere abbassa la sorpresa futura di questa regione (ora è nota):
+    // essendo il percetto ora in memoria, la sua distanza minima diventa ~0.
+  }
+
+  // 4) SETPOINT S* ANCORATO al RAGGIUNGIBILE. Prima S* saliva con log(memoria),
+  //    ma memorizzare AZZERA la sorpresa delle regioni note: il setpoint saliva
+  //    mentre la sorpresa strutturata ottenibile scendeva (direzioni OPPOSTE) ->
+  //    noia cronica. Ora S* insegue un quantile mobile della sorpresa realmente
+  //    osservata di recente sui patch STRUTTURATI: resta dentro la banda occupabile.
+  if(driftOn){
+    const target = (a.sHist.length >= 8)
+      ? clamp(quantile(a.sHist, 0.65), S_MIN, S_MAX)   // stretch-goal ancora raggiungibile
+      : S_MIN;                                         // pochi campioni: parti basso
+    a.setpoint = clamp(a.setpoint + (target - a.setpoint)*0.02, S_MIN, S_MAX);
+  }
+
+  // 5) VUOTO REGOLATORE: campiona in NDIR direzioni la sorpresa STIMATA e la
+  //    STRUTTURA (varianza), poi sterza per riportare la sorpresa verso S*.
+  let dirx=0, diry=0;
+  const cand=new Array(NDIR);
+  let maxS=-1,minS=2,maxV=-1,iMaxS=0,iMinS=0,iMaxV=0;
+  for(let i=0;i<NDIR;i++){
+    const ang=i/NDIR*Math.PI*2;
+    const pp=perceive(a, a.px+Math.cos(ang)*PROBE, a.py+Math.sin(ang)*PROBE);
+    const s=surpriseOf(a, pp);
+    cand[i]={ang, s, v:pp.variance};
+    if(s>maxS){ maxS=s; iMaxS=i; }
+    if(s<minS){ minS=s; iMinS=i; }
+    if(pp.variance>maxV){ maxV=pp.variance; iMaxV=i; }
+  }
+  const spread=maxS-minS;                 // c'è un gradiente di sorpresa?
+  if(a.surprise > a.setpoint + DEAD){
+    // TRAVOLTO -> ritirati verso sorpresa più BASSA (locale, sul noto). Da
+    // neonato non c'è ancora un "noto": cerca STRUTTURA (varianza max) da
+    // imparare, così la memoria cresce e la sorpresa può scendere verso S*.
+    const k = spread>0.02 ? iMinS : iMaxV;
+    dirx=Math.cos(cand[k].ang); diry=Math.sin(cand[k].ang);
+  } else {
+    // ANNOIATO (surprise<S*) o FLOW (~S*) -> REGOLATORE PROPORZIONALE reale:
+    // sterza lungo il GRADIENTE di sorpresa verso iMaxS con guadagno proporzionale
+    // all'errore (S* - surprise). Più sei sotto il setpoint, più forte insegui la
+    // novità; a setpoint (flow) il bias -> 0 e mantieni la rotta (roaming/coverage).
+    // Questo CHIUDE il loop di feedback (prima era un bias fisso 0.45 = random walk).
+    const sp=Math.hypot(a.vx,a.vy);
+    let hx = sp>1e-4 ? a.vx/sp : Math.cos(a.wphase);
+    let hy = sp>1e-4 ? a.vy/sp : Math.sin(a.wphase);
+    const curl = 0.11*Math.sin(step*a.wrate + a.wphase); // curva dolce, no loop stretti
+    const cs=Math.cos(curl), sn=Math.sin(curl);
+    const rx = hx*cs - hy*sn, ry = hx*sn + hy*cs;         // rotazione della rotta
+    // controllo proporzionale: errore = quanto la sorpresa è SOTTO il setpoint.
+    // Guadagno CTRL_K abbastanza forte da vincere l'inerzia e produrre deriva netta.
+    const err = a.setpoint - a.surprise;                  // >0 quando annoiato
+    // FIDUCIA nel gradiente: in una zona piatta e vuota tutte le direzioni leggono
+    // sorpresa ~0, quindi iMaxS è rumore casuale -> NON inseguirlo (tremerebbe sul
+    // posto). Insegui la novità solo se c'è un vero gradiente; altrimenti roaming
+    // balistico (mantieni la rotta) così VIAGGIA e trova la struttura lontana.
+    const grad = clamp(spread / 0.08, 0, 1);
+    const bias = clamp(CTRL_K*err, 0, 1) * grad;
+    const nx = Math.cos(cand[iMaxS].ang), ny = Math.sin(cand[iMaxS].ang);
+    dirx = rx*(1-bias) + nx*bias;
+    diry = ry*(1-bias) + ny*bias;
+  }
+
+  // 6) COMBINA curiosità (metabolismo) + eventuale tiro verso il GOAL
+  let ax=dirx*CUR, ay=diry*CUR;
+  if(a.hasGoal){
+    const gx=a.goalX-a.px, gy=a.goalY-a.py;
+    const gd=Math.hypot(gx,gy);
+    a.distToGoal=gd;
+    if(gd<REACH){ a.reached=true; }
+    // tiro verso il target. Prima di arrivare: pull pieno (converge).
+    // Dopo "raggiunto": TETHER dolce che cresce con la distanza -> l'agente
+    // ESPLORA localmente i pressi del target ma non vaga per tutta l'arena
+    // (così il no-goal copre osservabilmente PIÙ area).
+    const w = a.reached ? clamp(gd/20, 0, 1)*GOALG : GOALG;
+    if(gd>1e-4){ ax += (gx/gd)*w; ay += (gy/gd)*w; }
+  }
+  // normalizza il vettore desiderato (evita accumuli non controllati)
+  const dl=Math.hypot(ax,ay)||1; ax/=dl; ay/=dl;
+
+  // 7) INTEGRAZIONE con inerzia e CLAMP di velocità (niente divergenza)
+  a.vx = a.vx*INERTIA + ax*ACC;
+  a.vy = a.vy*INERTIA + ay*ACC;
+  let sp=Math.hypot(a.vx,a.vy);
+  if(sp>VMAX){ a.vx*=VMAX/sp; a.vy*=VMAX/sp; }
+  a.vx=safe(a.vx,0); a.vy=safe(a.vy,0);
+
+  a.px += a.vx; a.py += a.vy;
+  // rimbalzo ai bordi + clamp posizione (mai fuori arena, mai NaN)
+  if(a.px<0){ a.px=0; a.vx=-a.vx; } else if(a.px>W){ a.px=W; a.vx=-a.vx; }
+  if(a.py<0){ a.py=0; a.vy=-a.vy; } else if(a.py>H){ a.py=H; a.vy=-a.vy; }
+  a.px=clamp(safe(a.px,W/2),0,W); a.py=clamp(safe(a.py,H/2),0,H);
+  a.heading=Math.atan2(a.vy||1e-6, a.vx||1e-6);
+
+  // 8) COPERTURA: marca la cella corrente
+  const cx=clamp(a.px/W*CGW|0,0,CGW-1), cy=clamp(a.py/H*CGH|0,0,CGH-1);
+  const ci=cy*CGW+cx;
+  if(!a.visited[ci]){ a.visited[ci]=1; a.coverCount++; }
+
+  // 9) SCIA (trail) — bounded
+  a.trail.push(a.px, a.py);
+  if(a.trail.length>240) a.trail.splice(0, a.trail.length-240);
+}
+
+/* RAGGIO D'AZIONE EFFETTIVO: il raggio innato R modulato dallo stato (la sorpresa).
+   Agitato/sorpreso -> si allarga (piu spazio personale); in flow/calmo -> si contrae.
+   E' "sempre in cambio": il vuoto tra due agenti respira con i loro stati. */
+function reff(a){ return a.R * (REFF_BASE + REFF_GAIN*clamp(a.surprise/REFF_REF, 0, 1)); }
+
+/* LA RELAZIONE TRA AGENTI = il vuoto che li separa, ma la sua FORZA non è fissa:
+   è la SORPRESA SOCIALE = 1 - familiarità. Sconosciuto (familiarità 0) -> sorpresa
+   massima -> forte repulsione, grande vuoto. La familiarità cresce con l'esposizione
+   (stessa idea della memoria: l'esposizione riduce la sorpresa), quindi due agenti che
+   passano tempo insieme si "conoscono" e il vuoto tra loro si assottiglia col tempo. */
+function applyMutualVoid(){
+  for(let i=0;i<agents.length;i++) for(let j=i+1;j<agents.length;j++){
+    const a=agents[i], b=agents[j];
+    let dx=b.px-a.px, dy=b.py-a.py;
+    let d=Math.hypot(dx,dy); if(d<1e-4){ d=1e-4; dx=1e-4; }
+    const ra=reff(a), rb=reff(b);
+    const range=ra+rb;                        // raggio entro cui si percepiscono
+    if(d < range){
+      const ux=dx/d, uy=dy/d, overlap=range-d;
+      const fa=a.fam[b.id]||0, fb=b.fam[a.id]||0;   // familiarità reciproca (memoria sociale)
+      const sA=1-fa, sB=1-fb;                        // sorpresa sociale = complemento
+      a.fam[b.id]=Math.min(1, fa+FAM_RATE);          // l'esposizione LI FA CONOSCERE, gradualmente
+      b.fam[a.id]=Math.min(1, fb+FAM_RATE);
+      // REPULSIONE derivata dalla sorpresa (nessuna costante di forza): sconosciuti si
+      // respingono forte, familiari quasi per niente. VOID_SOFT è solo smorzamento.
+      const pA=overlap*sA*VOID_SOFT, pB=overlap*sB*VOID_SOFT;
+      a.px=clamp(a.px - ux*pA, 0, W-1); a.py=clamp(a.py - uy*pA, 0, H-1);
+      b.px=clamp(b.px + ux*pB, 0, W-1); b.py=clamp(b.py + uy*pB, 0, H-1);
+      a.vx=safe(a.vx - ux*pA*0.5, 0); a.vy=safe(a.vy - uy*pA*0.5, 0);
+      b.vx=safe(b.vx + ux*pB*0.5, 0); b.vy=safe(b.vy + uy*pB*0.5, 0);
+    }
+  }
+}
+
+/* =====================================================================
+   OSCILLOSCOPIO: sorgenti dei segnali (normalizzate in [-1,1]) per agente
+   ===================================================================== */
+const SIG={
+  err:  { lab:'sorpresa − setpoint (errore metabolico)', fn:(a)=>clamp((a.surprise-a.setpoint)*4,-1,1) },
+  ds:   { lab:'Δ sorpresa (variazione)',                 fn:(a)=>clamp((a.surprise-a._sPrev)*30,-1,1) },
+  s:    { lab:'sorpresa',                                fn:(a)=>a.surprise*2-1 },
+  px:   { lab:'posizione x',                             fn:(a)=>a.px/(W-1)*2-1 },
+  py:   { lab:'posizione y',                             fn:(a)=>-(a.py/(H-1)*2-1) },
+  vx:   { lab:'velocità x',                              fn:(a)=>clamp(a.vx/VMAX,-1,1) },
+  vy:   { lab:'velocità y',                              fn:(a)=>clamp(-a.vy/VMAX,-1,1) },
+  reff: { lab:'raggio d\'azione effettivo',              fn:(a)=>clamp(((reff(a)/a.R)-REFF_BASE)/REFF_GAIN*2-1,-1,1) },
+  bond: { lab:'legame sociale max',                      fn:(a)=>{ const v=Object.values(a.fam); return (v.length?Math.max.apply(null,v):0)*2-1; } },
+};
+let scopeXKey='err', scopeYKey='ds';       // default: ritratto di fase del metabolismo
+const SIGLEN=380;                          // campioni tenuti per agente
+function recordSignals(){
+  for(const a of agents){
+    if(!a.sig) a.sig={};
+    for(const k in SIG){
+      if(!a.sig[k]) a.sig[k]=[];
+      a.sig[k].push(SIG[k].fn(a));
+      if(a.sig[k].length>SIGLEN) a.sig[k].shift();
+    }
+    a._sPrev=a.surprise;
+  }
+}
+
+function simStep(){
+  if(dynamicWorld && (step % 4 === 0)) driftField(); // deriva lenta del mondo
+  for(let i=0;i<agents.length;i++) stepAgent(agents[i], driftSetpoint);
+  applyMutualVoid();                                 // gestione del vuoto tra agenti
+  recordSignals();                                   // sonda dell'oscilloscopio
+  step++;
+}
+
+/* =====================================================================
+   RENDERING (Canvas2D) — campo teal su nero pixelato + agenti/scie/goal
+   ===================================================================== */
+const cv=document.getElementById('arena');
+const ctx=cv.getContext('2d');
+const CW=cv.width, CH=cv.height;
+const SX=CW/W, SY=CH/H;
+// canvas offscreen alla risoluzione del campo, poi scalato pixelated
+const fc=document.createElement('canvas'); fc.width=W; fc.height=H;
+const fctx=fc.getContext('2d');
+const fimg=fctx.createImageData(W,H);
+
+function drawField(){
+  const d=fimg.data;
+  for(let i=0;i<W*H;i++){
+    const v=field[i];                  // [0,1]
+    const g=Math.pow(v,1.15);          // gamma >1 => più contrasto, vuoti scuri
+    d[i*4  ]=clamp(g*40 ,0,255);       // teal glow: poco rosso...
+    d[i*4+1]=clamp(g*210,0,255);       // ...molto verde...
+    d[i*4+2]=clamp(g*180,0,255);       // ...verde-azzurro
+    d[i*4+3]=255;
+  }
+  fctx.putImageData(fimg,0,0);
+  ctx.imageSmoothingEnabled=false;     // scaling pixelated
+  ctx.drawImage(fc,0,0,W,H,0,0,CW,CH);
+}
+function drawAgents(){
+  for(const a of agents){
+    // scia
+    if(a.trail.length>=4){
+      ctx.beginPath();
+      ctx.moveTo(a.trail[0]*SX, a.trail[1]*SY);
+      for(let i=2;i<a.trail.length;i+=2) ctx.lineTo(a.trail[i]*SX, a.trail[i+1]*SY);
+      ctx.strokeStyle=a.color; ctx.globalAlpha=0.35; ctx.lineWidth=1.5; ctx.stroke();
+      ctx.globalAlpha=1;
+    }
+    // marker del goal (cerchio + croce del colore dell'agente)
+    if(a.hasGoal){
+      const gx=a.goalX*SX, gy=a.goalY*SY;
+      ctx.strokeStyle=a.color; ctx.globalAlpha=a.reached?0.9:0.6; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.arc(gx,gy,7,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(gx-4,gy); ctx.lineTo(gx+4,gy);
+      ctx.moveTo(gx,gy-4); ctx.lineTo(gx,gy+4); ctx.stroke();
+      ctx.globalAlpha=1;
+      if(!a.reached){ // linea sottile agente->goal
+        ctx.strokeStyle=a.color; ctx.globalAlpha=0.15;
+        ctx.beginPath(); ctx.moveTo(a.px*SX,a.py*SY); ctx.lineTo(gx,gy); ctx.stroke();
+        ctx.globalAlpha=1;
+      }
+    }
+    // pallina: alone dipende dalla sorpresa
+    const x=a.px*SX, y=a.py*SY;
+    // ANELLO del raggio d'azione effettivo (il vuoto che tiene lontani gli altri)
+    const rr=reff(a);
+    ctx.beginPath(); ctx.ellipse(x,y, rr*SX, rr*SY, 0, 0, Math.PI*2);
+    ctx.strokeStyle=a.color; ctx.globalAlpha=0.16; ctx.lineWidth=1; ctx.stroke(); ctx.globalAlpha=1;
+    ctx.beginPath(); ctx.arc(x,y,3+a.surprise*4,0,Math.PI*2);
+    ctx.fillStyle=a.color; ctx.globalAlpha=0.18; ctx.fill(); ctx.globalAlpha=1;
+    ctx.beginPath(); ctx.arc(x,y,4,0,Math.PI*2);
+    ctx.fillStyle=a.color; ctx.fill();
+    ctx.strokeStyle='#04120e'; ctx.lineWidth=1; ctx.stroke();
+  }
+}
+function draw(){
+  ctx.clearRect(0,0,CW,CH);
+  drawField();
+  drawAgents();
+  drawScope();
+}
+
+/* =====================================================================
+   OSCILLOSCOPIO — fosforo con persistenza + fascio additivo per agente
+   ===================================================================== */
+const scv=document.getElementById('scope'), sctx=scv.getContext('2d');
+const SW=scv.width, SH=scv.height, SCX=SW/2, SCY=SH/2, SSC=SW*0.44;
+let scopePersist=0.93, scopeGain=1.0;
+sctx.fillStyle='#000'; sctx.fillRect(0,0,SW,SH);
+function drawScope(){
+  // decadimento del fosforo (velo nero) + reticolo tenue
+  sctx.globalCompositeOperation='source-over';
+  sctx.fillStyle='rgba(0,0,0,'+(1-scopePersist)+')';
+  sctx.fillRect(0,0,SW,SH);
+  sctx.strokeStyle='rgba(94,224,192,0.06)'; sctx.lineWidth=1;
+  for(let i=1;i<8;i++){ const x=i/8*SW, y=i/8*SH;
+    sctx.beginPath(); sctx.moveTo(x,0); sctx.lineTo(x,SH); sctx.stroke();
+    sctx.beginPath(); sctx.moveTo(0,y); sctx.lineTo(SW,y); sctx.stroke(); }
+  // assi centrali
+  sctx.strokeStyle='rgba(94,224,192,0.12)';
+  sctx.beginPath(); sctx.moveTo(SCX,0); sctx.lineTo(SCX,SH); sctx.stroke();
+  sctx.beginPath(); sctx.moveTo(0,SCY); sctx.lineTo(SW,SCY); sctx.stroke();
+  // fascio: per ogni agente la traiettoria (X,Y) nel suo colore, additiva
+  sctx.globalCompositeOperation='lighter';
+  for(const a of agents){
+    if(!a.sig || !a.sig[scopeXKey] || a.sig[scopeXKey].length<2) continue;
+    const xs=a.sig[scopeXKey], ys=a.sig[scopeYKey], n=Math.min(xs.length,ys.length);
+    for(const pass of [[4,0.06],[1.4,0.4]]){       // alone + nucleo
+      sctx.lineWidth=pass[0]; sctx.strokeStyle=a.color; sctx.globalAlpha=pass[1];
+      sctx.beginPath();
+      for(let i=0;i<n;i++){
+        const px=SCX+clamp(xs[i]*scopeGain,-1.1,1.1)*SSC;
+        const py=SCY-clamp(ys[i]*scopeGain,-1.1,1.1)*SSC;
+        i?sctx.lineTo(px,py):sctx.moveTo(px,py);
+      }
+      sctx.stroke();
+    }
+    // il punto del fascio (posizione attuale)
+    const lx=SCX+clamp(xs[n-1]*scopeGain,-1.1,1.1)*SSC, ly=SCY-clamp(ys[n-1]*scopeGain,-1.1,1.1)*SSC;
+    sctx.globalAlpha=0.9; sctx.fillStyle=a.color;
+    sctx.beginPath(); sctx.arc(lx,ly,2.4,0,Math.PI*2); sctx.fill();
+  }
+  sctx.globalAlpha=1; sctx.globalCompositeOperation='source-over';
+}
+
+/* tabella di stato + contatori */
+function fmt(v,d){ return (Math.round(v*Math.pow(10,d))/Math.pow(10,d)).toFixed(d); }
+function updateUI(){
+  document.getElementById('mStep').textContent=step;
+  document.getElementById('mCount').textContent=agents.length;
+  const tb=document.getElementById('tbody');
+  if(agents.length===0){
+    tb.innerHTML='<tr><td class="name" colspan="6" style="color:var(--dim);text-align:left">Nessun agente. Premi “Genera agente”.</td></tr>';
+    return;
+  }
+  let html='';
+  for(const a of agents){
+    const cov=a.coverCount/CGN;
+    const goalCell = a.hasGoal
+      ? (a.reached ? '<span class="tag reached">raggiunto</span>' : fmt(a.distToGoal,1))
+      : '<span style="color:var(--dim)">—</span>';
+    const tag = a.hasGoal ? '<span class="tag goal">goal</span>' : '<span class="tag free">libero</span>';
+    // barra sorpresa con marker del setpoint
+    const sBar='<span class="barwrap"><span class="bar" style="width:'+fmt(a.surprise*100,0)+'%;background:'+a.color+'"></span></span>';
+    html+='<tr>'+
+      '<td class="name"><span class="dot" style="background:'+a.color+'"></span>#'+a.id+' '+tag+'</td>'+
+      '<td>'+fmt(a.surprise,3)+' '+sBar+'</td>'+
+      '<td>'+fmt(a.setpoint,3)+'</td>'+
+      '<td>'+a.memory.length+'</td>'+
+      '<td>'+goalCell+'</td>'+
+      '<td>'+fmt(cov*100,1)+'%</td>'+
+    '</tr>';
+  }
+  tb.innerHTML=html;
+}
+
+/* =====================================================================
+   LOOP + CONTROLLI
+   ===================================================================== */
+let running=true;
+let simSpeed=2;
+let dynamicWorld=false;
+let driftSetpoint=true;
+
+function frame(){
+  if(running){ for(let i=0;i<simSpeed;i++) simStep(); }
+  draw(); updateUI();
+  requestAnimationFrame(frame);
+}
+
+// bottoni
+document.getElementById('bGenGoal').onclick=()=>{ spawnAgent(true); updateUI(); };
+document.getElementById('bGenFree').onclick=()=>{ spawnAgent(false); updateUI(); };
+const bRun=document.getElementById('bRun');
+bRun.onclick=()=>{ running=!running; bRun.textContent=running?'Pausa':'Riprendi'; bRun.classList.toggle('on',running); };
+document.getElementById('bReset').onclick=()=>{
+  agents=[]; step=0; colorIdx=0; rng=mulberry32(1337); // reset deterministico
+  initField(); updateUI();
+};
+const sSpeed=document.getElementById('sSpeed'), vSpeed=document.getElementById('vSpeed');
+sSpeed.oninput=()=>{ simSpeed=+sSpeed.value; vSpeed.textContent=simSpeed+'x'; };
+const bDyn=document.getElementById('bDyn');
+bDyn.onclick=()=>{ dynamicWorld=!dynamicWorld; bDyn.textContent=dynamicWorld?'ON':'OFF'; bDyn.classList.toggle('on',dynamicWorld); };
+const bDrift=document.getElementById('bDrift');
+bDrift.onclick=()=>{ driftSetpoint=!driftSetpoint; bDrift.textContent=driftSetpoint?'ON':'OFF'; bDrift.classList.toggle('on',driftSetpoint); };
+
+// controlli dell'oscilloscopio: canali X/Y + persistenza + guadagno
+(function(){
+  const selX=document.getElementById('scopeX'), selY=document.getElementById('scopeY');
+  let opts=''; for(const k in SIG) opts+='<option value="'+k+'">'+SIG[k].lab+'</option>';
+  selX.innerHTML=opts; selY.innerHTML=opts;
+  selX.value=scopeXKey; selY.value=scopeYKey;
+  const wipe=()=>{ sctx.globalCompositeOperation='source-over'; sctx.fillStyle='#000'; sctx.fillRect(0,0,SW,SH); };
+  selX.onchange=()=>{ scopeXKey=selX.value; wipe(); };
+  selY.onchange=()=>{ scopeYKey=selY.value; wipe(); };
+  const sp=document.getElementById('scopeP'), sg=document.getElementById('scopeG');
+  sp.oninput=()=>{ scopePersist=+sp.value; document.getElementById('scopePv').textContent=scopePersist.toFixed(2); };
+  sg.oninput=()=>{ scopeGain=+sg.value; document.getElementById('scopeGv').textContent=scopeGain.toFixed(1); };
+})();
+
+/* =====================================================================
+   API HEADLESS (obbligatoria) — deterministica
+   ===================================================================== */
+function agentState(a){
+  return {
+    surprise:a.surprise, setpoint:a.setpoint, memSize:a.memory.length,
+    hasGoal:a.hasGoal, distToGoal:a.hasGoal?a.distToGoal:null,
+    coverage:a.coverCount/CGN, px:a.px, py:a.py, reached:a.reached, color:a.color,
+    R:a.R, reff:reff(a),
+    known:Object.keys(a.fam).length,
+    bond:(function(){ const v=Object.values(a.fam); return v.length?Math.max.apply(null,v):0; })()
+  };
+}
+window.__advance=function(n){
+  n=Math.max(1, n|0);
+  for(let i=0;i<n;i++) simStep();
+  draw(); updateUI();
+  return { step:step, agents:agents.map(agentState) };
+};
+window.__agents=function(){ return agents.map(agentState); };
+window.__spawn=function(opts){
+  opts=opts||{};
+  const a=spawnAgent(!!opts.goal);
+  updateUI();
+  return agentState(a);
+};
+
+// avvio
+initField(); draw(); updateUI();
+requestAnimationFrame(frame);
+})();
+</script>

@@ -1,0 +1,334 @@
+<meta charset="utf-8">
+<title>Modello del Vuoto — osserva e conosce</title>
+<style>
+  :root{ --bg:#0a0e12; --panel:#111820; --dim:#5b6b78; --accent:#5ee0c0; --blue:#7fd4ff; --org:#ffb14e; --pur:#c88bff; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:#dfe8ee; font:13px/1.4 -apple-system,Segoe UI,Roboto,sans-serif; }
+  h1{ font-size:15px; margin:14px 16px 4px; color:var(--accent); font-weight:600; }
+  .sub{ margin:0 16px 12px; color:var(--dim); font-size:12px; }
+  .wrap{ display:flex; gap:16px; padding:0 16px 24px; align-items:flex-start; flex-wrap:wrap; }
+  .col{ display:flex; flex-direction:column; gap:12px; }
+  .card{ background:var(--panel); border:1px solid #1c2833; border-radius:10px; padding:10px; }
+  .lab{ color:var(--dim); font-size:11px; margin-bottom:6px; text-transform:uppercase; letter-spacing:.4px; }
+  canvas.field{ image-rendering:pixelated; width:288px; height:216px; display:block; border-radius:6px; background:#000; }
+  canvas.spark{ width:300px; height:44px; display:block; }
+  .metric .big{ font-size:26px; font-weight:700; }
+  .ctrl{ background:var(--panel); border:1px solid #1c2833; border-radius:10px; padding:12px; width:320px; }
+  .row{ display:flex; align-items:center; justify-content:space-between; margin:8px 0; gap:8px; }
+  button{ background:#17222c; color:#dfe8ee; border:1px solid #26333f; border-radius:7px; padding:7px 10px; cursor:pointer; font-size:12px; }
+  button:hover{ border-color:var(--accent); }
+  button.on{ background:var(--accent); color:#04120e; border-color:var(--accent); font-weight:600; }
+  .shapes button{ flex:1; }
+  input[type=range]{ width:150px; accent-color:var(--accent); }
+  .val{ color:var(--accent); font-variant-numeric:tabular-nums; min-width:38px; text-align:right; }
+  .note{ color:var(--dim); font-size:11px; margin-top:8px; line-height:1.5; }
+  .scoperow{ display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start; }
+  .scope{ background:#060a08; border:1px solid #12331f; border-radius:8px; padding:8px; }
+  .scope .sl{ color:#6fdf9f; font-size:11px; margin-bottom:5px; letter-spacing:.3px; }
+  .scope canvas{ display:block; background:#040706; border-radius:4px; }
+  .scope .sv{ display:inline-block; margin-top:4px; color:#7CFC00; font-variant-numeric:tabular-nums; font-size:12px; }
+  .osch{ font-size:12px; color:var(--accent); margin:0 0 8px; letter-spacing:.3px; }
+</style>
+
+<h1>Modello del Vuoto — un sistema che osserva forme e prova a conoscerle</h1>
+<p class="sub">Tre algoritmi in predictive coding (esterno r1 · interno r3 · mezzo r1) + torre di residui (variabili di variabili). "Conosce" = il residuo si sbianca. "Evolve" = si ri-adatta a forme nuove.</p>
+
+<div class="wrap">
+  <div class="col">
+    <div class="card"><div class="lab">L'ESTERNO — lo controlli TU (l'ambiente)</div><canvas id="cTarget" class="field" width="96" height="72"></canvas></div>
+    <div class="card"><div class="lab">Ricostruzione interna (ciò che crede di vedere)</div><canvas id="cBelief" class="field" width="96" height="72"></canvas></div>
+    <div class="card"><div class="lab">CODICE interno · z (la sua forma, auto-determinata)</div><canvas id="cCode" class="field" width="24" height="18"></canvas></div>
+    <div class="card"><div class="lab">Residuo — ciò che non ha ancora capito</div><canvas id="cResid" class="field" width="96" height="72"></canvas></div>
+  </div>
+
+  <div class="col">
+    <div class="card metric"><div class="lab">Comprensione (1 = forma catturata)</div>
+      <div><span id="mComp" class="big" style="color:var(--accent)">—</span></div>
+      <canvas id="spComp" class="spark" width="300" height="44"></canvas></div>
+    <div class="card metric"><div class="lab">Struttura residua (→0 = residuo bianco, niente più da capire)</div>
+      <div><span id="mStruct" class="big" style="color:var(--blue)">—</span></div>
+      <canvas id="spStruct" class="spark" width="300" height="44"></canvas></div>
+    <div class="card metric"><div class="lab">Energia residua (RMS di ciò che sfugge)</div>
+      <div><span id="mRes" class="big" style="color:var(--org)">—</span></div>
+      <canvas id="spRes" class="spark" width="300" height="44"></canvas></div>
+    <div class="card metric"><div class="lab">Stabilità del codice (1 = ri-forma lo stesso codice per questa forma)</div>
+      <div><span id="mStab" class="big" style="color:var(--pur)">—</span></div>
+      <canvas id="spStab" class="spark" width="300" height="44"></canvas></div>
+  </div>
+
+  <div class="ctrl">
+    <div class="lab">Forma da mostrare</div>
+    <div class="row shapes"><button data-s="0">Disco</button><button data-s="1">Quadrato</button><button data-s="2" class="on">Covalente</button><button data-s="3">Triangolo</button></div>
+    <div class="row"><span>Collo di bottiglia (larghezza codice)</span><input id="sBott" type="range" min="2" max="16" step="1" value="4"><span class="val" id="vBott">1/4</span></div>
+    <div class="row" style="margin-top:-2px"><span style="color:var(--dim);font-size:11px">codice: <b id="vLat" style="color:var(--accent)">—</b> variabili &nbsp;·&nbsp; stretto = più astrazione, largo = più copia</span></div>
+    <div class="row"><span>Torre di residui (2° livello)</span><button id="bTower" class="on">ON</button></div>
+    <div class="row"><span>Opinione — 4° sistema (caos autoref.)</span><button id="bOpin" class="on">ON</button></div>
+    <div class="row"><span>Auto-ciclo forme</span><button id="bCycle">OFF</button></div>
+    <div class="row"><span>Velocità apprend. η</span><input id="sEta" type="range" min="0.05" max="0.9" step="0.05" value="0.4"><span class="val" id="vEta">0.40</span></div>
+    <div class="row"><span>Rumore del substrato</span><input id="sNoise" type="range" min="0" max="0.15" step="0.01" value="0.03"><span class="val" id="vNoise">0.03</span></div>
+    <div class="row"><button id="bRun" class="on" style="flex:1">Pausa</button><button id="bReset" style="flex:1">Dimentica tutto</button></div>
+    <div class="row"><button id="bNew" style="flex:1">Mostra la forma di nuovo (test memoria)</button></div>
+    <div class="note">L'interno NON copia più l'esterno: lo <b>codifica</b> in <b id="vLat2" style="color:var(--accent)">—</b> variabili (il collo di bottiglia), poi lo <b>ricostruisce</b>. La sua forma la determina lui. Passo: <span id="mStep" style="color:var(--accent)">0</span></div>
+  </div>
+</div>
+
+<div style="padding:0 16px 28px;">
+  <p class="osch">OSCILLOSCOPI — gerarchia dei sistemi (sonda appoggiata al centro del campo)</p>
+  <div class="scoperow">
+    <div class="scope"><div class="sl">S1 · Esterno (sensore)</div><canvas id="oscExt" width="240" height="88"></canvas><br><span class="sv" id="vExt">—</span></div>
+    <div class="scope"><div class="sl">S2 · Interno (modello)</div><canvas id="oscInt" width="240" height="88"></canvas><br><span class="sv" id="vInt">—</span></div>
+    <div class="scope"><div class="sl">S3 · Mezzo (predizione)</div><canvas id="oscMid" width="240" height="88"></canvas><br><span class="sv" id="vMid">—</span></div>
+    <div class="scope"><div class="sl">S4 · Torre (variabile di variabile)</div><canvas id="oscTow" width="240" height="88"></canvas><br><span class="sv" id="vTow">—</span></div>
+  </div>
+  <div class="scoperow" style="margin-top:12px;">
+    <div class="scope"><div class="sl">Σ3 · Sistema dei 3 (triade → residuo err0)</div><canvas id="oscTri" width="372" height="88"></canvas><br><span class="sv" id="vTri">—</span></div>
+    <div class="scope"><div class="sl">Σ4 · Sistema del sistema di tutti e 4 (comprensione globale)</div><canvas id="oscTop" width="372" height="88"></canvas><br><span class="sv" id="vTop">—</span></div>
+  </div>
+  <div class="scoperow" style="margin-top:12px;">
+    <div class="scope" style="border-color:#3a1440;"><div class="sl" style="color:#ff9edf">S5 · OPINIONE — 4° sistema (scarto media interno↔esterno · caos autoreferenziale · mai fermo)</div><canvas id="oscOp" width="760" height="88"></canvas><br><span class="sv" id="vOp" style="color:#ff5edb">—</span></div>
+  </div>
+</div>
+
+<script>
+const G=96, H=72, N=G*H;           // griglia fine
+const G2=G>>1, H2=H>>1, N2=G2*H2;  // griglia grezza (torre livello 1)
+let P={ shape:2, tower:true, cycle:false, eta:0.4, noise:0.03, running:true, opinion:true };
+
+// ---- campi ----
+const target=new Float32Array(N);  // la forma tradotta in campo
+const ext=new Float32Array(N);     // sensore (r=1) del target
+const belief=new Float32Array(N);  // interno livello 0 (il modello)
+const pred=new Float32Array(N);    // predizione (r=1) del modello
+const err0=new Float32Array(N);    // residuo livello 0
+const tmp=new Float32Array(N), tmp2=new Float32Array(N);
+// torre livello 1 (grezzo)
+const belief1=new Float32Array(N2), pred1=new Float32Array(N2);
+const sens1=new Float32Array(N2), err1=new Float32Array(N2), tmpC=new Float32Array(N2);
+const pred1Up=new Float32Array(N);
+const finalRes=new Float32Array(N);
+
+// ---- rumore deterministico (no Math.random per riproducibilità) ----
+let seed=12345; function rnd(){ seed=(seed*1103515245+12345)&0x7fffffff; return seed/0x7fffffff; }
+
+// ---- forme -> campo (occupazione morbida in [0,1]) ----
+function makeShape(s){
+  target.fill(0);
+  const cx=G/2, cy=H/2;
+  for(let y=0;y<H;y++) for(let x=0;x<G;x++){
+    const i=y*G+x; let v=0;
+    const dx=x-cx, dy=y-cy;
+    if(s===0){ const r=Math.hypot(dx,dy); v=1/(1+Math.exp((r-20)*0.6)); }
+    else if(s===1){ const m=Math.max(Math.abs(dx),Math.abs(dy)); v=1/(1+Math.exp((m-17)*0.7)); }
+    else if(s===2){ const r1=Math.hypot(dx+9,dy), r2=Math.hypot(dx-9,dy);
+      const a=1/(1+Math.exp((r1-14)*0.7)), b=1/(1+Math.exp((r2-14)*0.7)); v=Math.max(a,b); }
+    else { const t=(dy+18)/48; const half=t*22; const inside=(dy>-18&&dy<24&&Math.abs(dx)<half); v=inside?1:0;
+      // morbido
+      v=1/(1+Math.exp((Math.abs(dx)-half)*0.8))*(dy>-18&&dy<24?1:0); }
+    target[i]=v;
+  }
+}
+
+// ---- box blur separabile, raggio r (clamp bordi) ----
+function blur(src,dst,r,w,h){
+  const line=Math.max(w,h);
+  const acc=blur._a||(blur._a=new Float32Array(line+1));
+  // orizzontale
+  for(let y=0;y<h;y++){ const o=y*w; let s=0; acc[0]=0;
+    for(let x=0;x<w;x++){ s+=src[o+x]; acc[x+1]=s; }
+    for(let x=0;x<w;x++){ const a=Math.max(0,x-r), b=Math.min(w-1,x+r); dst[o+x]=(acc[b+1]-acc[a])/(b-a+1); } }
+  // verticale (in place su dst via tmp colonna)
+  const csum=blur._c||(blur._c=new Float32Array(line+1));
+  for(let x=0;x<w;x++){ let s=0; csum[0]=0;
+    for(let y=0;y<h;y++){ s+=dst[y*w+x]; csum[y+1]=s; }
+    for(let y=0;y<h;y++){ const a=Math.max(0,y-r), b=Math.min(h-1,y+r); tmp[y]=(csum[b+1]-csum[a])/(b-a+1); }
+    for(let y=0;y<h;y++) dst[y*w+x]=tmp[y]; }
+}
+
+function downsample(src,dst){ for(let y=0;y<H2;y++) for(let x=0;x<G2;x++){
+  const sx=x<<1, sy=y<<1; dst[y*G2+x]=0.25*(src[sy*G+sx]+src[sy*G+sx+1]+src[(sy+1)*G+sx]+src[(sy+1)*G+sx+1]); } }
+function upsample(src,dst){ for(let y=0;y<H;y++) for(let x=0;x<G;x++){ dst[y*G+x]=src[(y>>1)*G2+(x>>1)]; } }
+
+// ---- COLLO DI BOTTIGLIA: il codice interno z (Bx×By) ----
+// L'interno non copia: encode(esterno)->z (compressione), decode(z)->ricostruzione.
+let bf=4, Bx=Math.max(1,Math.round(G/bf)), By=Math.max(1,Math.round(H/bf)), Blat=Bx*By;
+const LATMAX=(G>>1)*(H>>1);
+const z=new Float32Array(LATMAX), zBlur=new Float32Array(LATMAX), ez=new Float32Array(LATMAX), ezCnt=new Float32Array(LATMAX);
+const predRaw=new Float32Array(N), errBlur=new Float32Array(N);
+const codeRefs=[null,null,null,null];   // codice di riferimento per forma (vocabolario emergente)
+let codeStab=0;
+// 4° SISTEMA: l'opinione (scarto media-interno vs media-esterno, caos autoreferenziale, feedback infinitesimo)
+let op=0.5; const opFB=0.002; let opDrive=0;
+function setBottleneck(v){ bf=v; Bx=Math.max(1,Math.round(G/bf)); By=Math.max(1,Math.round(H/bf)); Blat=Bx*By;
+  z.fill(0); for(let i=0;i<4;i++) codeRefs[i]=null;
+  const lc=document.getElementById('cCode'); if(lc){ lc.width=Bx; lc.height=By; }
+  const s=(''+Blat); const e1=document.getElementById('vLat'), e2=document.getElementById('vLat2'); if(e1)e1.textContent=s; if(e2)e2.textContent=s;
+  const vb=document.getElementById('vBott'); if(vb) vb.textContent='1/'+bf; }
+function decode(){ for(let y=0;y<H;y++){ const ly=Math.min(By-1,(y*By/H)|0), o=y*G; for(let x=0;x<G;x++){ const lx=Math.min(Bx-1,(x*Bx/G)|0); predRaw[o+x]=z[ly*Bx+lx]; } } blur(predRaw,pred,1,G,H); }
+function encode(srcB){ for(let i=0;i<Blat;i++){ ez[i]=0; ezCnt[i]=0; }
+  for(let y=0;y<H;y++){ const ly=Math.min(By-1,(y*By/H)|0), o=y*G; for(let x=0;x<G;x++){ const lx=Math.min(Bx-1,(x*Bx/G)|0), li=ly*Bx+lx; ez[li]+=srcB[o+x]; ezCnt[li]++; } }
+  for(let i=0;i<Blat;i++) ez[i]/=(ezCnt[i]||1); }
+function updateCodeStability(){ let ref=codeRefs[P.shape];
+  const pc=window.__metrics?window.__metrics.comp:0;
+  let mz=0; for(let i=0;i<Blat;i++) mz+=z[i]; mz/=(Blat||1);          // confronto sul PATTERN (media sottratta), non sul livello
+  if(ref){ let dot=0,na=0,nb=0; for(let i=0;i<Blat;i++){ const a=z[i]-mz, b=ref[i]-ref.mean; dot+=a*b; na+=a*a; nb+=b*b; } codeStab=(na>1e-9&&nb>1e-9)?Math.max(0,dot/Math.sqrt(na*nb)):0; }
+  else codeStab=0;
+  // congela il riferimento la PRIMA volta che impara bene; poi drift lentissimo (vocabolario stabile)
+  if(pc>0.6){ if(!ref){ ref=codeRefs[P.shape]=new Float32Array(Blat); for(let i=0;i<Blat;i++) ref[i]=z[i]; ref.mean=mz; }
+    else { let rm=0; for(let i=0;i<Blat;i++){ ref[i]=0.999*ref[i]+0.001*z[i]; rm+=ref[i]; } ref.mean=rm/(Blat||1); } } }
+function drawCode(){ const c=document.getElementById('cCode'); if(!c) return; if(c.width!==Bx||c.height!==By){ c.width=Bx; c.height=By; }
+  const g=c.getContext('2d'), img=g.createImageData(Bx,By), d=img.data;
+  for(let i=0;i<Blat;i++){ const v=Math.max(0,Math.min(1,z[i])), o=i*4; d[o]=v*94; d[o+1]=v*224; d[o+2]=v*192; d[o+3]=255; } g.putImageData(img,0,0); }
+
+// ---- un passo di apprendimento ----
+// Regola stabile: la correzione usa lo STESSO raggio della predizione (r=1),
+// cioè il trasposto dell'operatore generativo -> M = I - eta*B1^2 (sempre stabile).
+// Il "raggio d'azione 3 dell'interno" e' un PRIOR di lisciatura (diffusione), non un guadagno.
+let step=0;
+const GAMMA=0.12; // forza del prior interno (raggio 3)
+function stepOnce(){
+  // ESTERNO (r=1): sensore locale dell'ambiente + rumore del substrato
+  blur(target,ext,1,G,H);
+  if(P.noise>0){ for(let i=0;i<N;i++) ext[i]+=(rnd()-0.5)*2*P.noise; }
+  // MEZZO: predizione = DECODIFICA del codice interno (collo di bottiglia)
+  decode();
+  // residuo livello 0
+  for(let i=0;i<N;i++) err0[i]=ext[i]-pred[i];
+
+  // ---- torre: livello 1 modella il residuo grezzo (stessa regola stabile) ----
+  if(P.tower){
+    downsample(err0,sens1);
+    blur(belief1,pred1,1,G2,H2);
+    for(let i=0;i<N2;i++) err1[i]=sens1[i]-pred1[i];
+    blur(err1,tmpC,1,G2,H2);                                   // correzione r=1 (trasposto)
+    for(let i=0;i<N2;i++) belief1[i]+=P.eta*tmpC[i];
+    blur(belief1,tmpC,3,G2,H2);                                // prior interno r=3
+    for(let i=0;i<N2;i++) belief1[i]+=GAMMA*(tmpC[i]-belief1[i]);
+    upsample(pred1,pred1Up);
+    for(let i=0;i<N;i++) finalRes[i]=err0[i]-pred1Up[i];
+  } else {
+    finalRes.set(err0);
+  }
+
+  // ---- INTERNO: aggiorna il CODICE z = encode(residuo), + prior di lisciatura sul codice ----
+  blur(err0,errBlur,1,G,H);                                    // r=1 = trasposto del decode
+  encode(errBlur);
+  for(let i=0;i<Blat;i++) z[i]+=P.eta*ez[i];
+  if(Bx>2&&By>2){ blur(z,zBlur,1,Bx,By); for(let i=0;i<Blat;i++) z[i]+=GAMMA*(zBlur[i]-z[i]); }
+
+  // ---- 4° SISTEMA: l'OPINIONE ----
+  // sorgente = scarto tra media di ciò che È (pred) e media di ciò che VEDE (ext), + scarto medio di tutti i sistemi
+  let mi=0, me=0, sr=0; for(let i=0;i<N;i++){ mi+=pred[i]; me+=ext[i]; sr+=finalRes[i]; } mi/=N; me/=N; sr/=N;
+  const d = mi - me;                                           // relazione tra ciò che è e ciò che vede
+  const comp0 = window.__metrics?window.__metrics.comp:0;
+  opDrive = 0.15*d + 0.12*sr;
+  const rC = 3.90 + 0.09*Math.min(1, Math.abs(d)*6 + (1-comp0)*0.4);  // 3.90–3.99: sempre caotico, di più se sorpreso
+  op = op*rC*(1-op) + opDrive;                                 // autocontiene (op·…·(1-op)) e si autoaumenta (rC)
+  if(op<1e-4) op=1e-4; else if(op>0.9999) op=0.9999;
+  if(P.opinion){ const bias=opFB*(op-0.5); for(let i=0;i<Blat;i++) z[i]+=bias; } // filtro personale infinitesimo sulla realtà
+
+  updateCodeStability();                                       // ri-forma lo stesso codice? (vocabolario)
+
+  step++;
+  const m=metrics(); window.__metrics=m; pushHist(m); sampleScopes(m);   // campiona metriche + oscilloscopi ad ogni passo
+}
+
+// ---- metriche ----
+function metrics(){
+  let m=0; for(let i=0;i<N;i++) m+=ext[i]; m/=N;
+  let sS=0,sR=0; for(let i=0;i<N;i++){ const d=ext[i]-m; sS+=d*d; sR+=finalRes[i]*finalRes[i]; }
+  const sig=Math.sqrt(sS/N)||1e-9, res=Math.sqrt(sR/N);
+  const comp=Math.max(0,Math.min(1,1-res/sig));
+  // struttura residua = autocorrelazione spaziale lag-1 (orizz)
+  let num=0,den=0; for(let y=0;y<H;y++) for(let x=0;x<G-1;x++){ const i=y*G+x; num+=finalRes[i]*finalRes[i+1]; den+=finalRes[i]*finalRes[i]; }
+  const struct=den>1e-12?Math.max(0,num/den):0;
+  return {comp, struct, res, step, stab:codeStab};
+}
+
+// ---- oscilloscopi: gerarchia di sonde ----
+const PX=Math.floor(G/2), PY=Math.floor(H/2), PROBE=PY*G+PX, PROBEC=(PY>>1)*G2+(PX>>1);
+const SCLEN=220;
+const scopes=[
+  {cv:'oscExt', vid:'vExt', buf:[], samp:(m)=>ext[PROBE]},
+  {cv:'oscInt', vid:'vInt', buf:[], samp:(m)=>{ const lx=Math.min(Bx-1,(PX*Bx/G)|0), ly=Math.min(By-1,(PY*By/H)|0); return z[ly*Bx+lx]; }},
+  {cv:'oscMid', vid:'vMid', buf:[], samp:(m)=>pred[PROBE]},
+  {cv:'oscTow', vid:'vTow', buf:[], samp:(m)=>belief1[PROBEC]},
+  {cv:'oscTri', vid:'vTri', buf:[], samp:(m)=>err0[PROBE], zero:true},
+  {cv:'oscTop', vid:'vTop', buf:[], samp:(m)=>m.comp, fixed:[0,1]},
+  {cv:'oscOp', vid:'vOp', buf:[], samp:(m)=>op, fixed:[0,1], color:'#ff5edb'},
+];
+function sampleScopes(m){ for(const s of scopes){ s.buf.push(s.samp(m)); if(s.buf.length>SCLEN) s.buf.shift(); } }
+function clearScopes(){ for(const s of scopes) s.buf.length=0; }
+function drawScope(s){ const c=document.getElementById(s.cv); if(!c) return; const g=c.getContext('2d'), W=c.width, Hh=c.height;
+  g.fillStyle='#040706'; g.fillRect(0,0,W,Hh);
+  g.strokeStyle='rgba(80,180,120,0.13)'; g.lineWidth=1;
+  for(let i=1;i<8;i++){ const x=i/8*W; g.beginPath(); g.moveTo(x,0); g.lineTo(x,Hh); g.stroke(); }
+  for(let i=1;i<4;i++){ const y=i/4*Hh; g.beginPath(); g.moveTo(0,y); g.lineTo(W,y); g.stroke(); }
+  const a=s.buf; const vel=document.getElementById(s.vid);
+  if(a.length<2){ if(vel) vel.textContent='—'; return; }
+  let mx=-1e9,mn=1e9; for(const v of a){ if(v>mx)mx=v; if(v<mn)mn=v; }
+  if(s.fixed){ mn=s.fixed[0]; mx=s.fixed[1]; }
+  else if(s.zero){ const M=Math.max(Math.abs(mx),Math.abs(mn),1e-4); mx=M; mn=-M; }
+  else { const pad=(mx-mn)*0.15||0.05; mx+=pad; mn-=pad; }
+  const rng=(mx-mn)||1;
+  if(mn<0&&mx>0){ const yz=Hh-((0-mn)/rng)*Hh; g.strokeStyle='rgba(120,220,150,0.35)'; g.beginPath(); g.moveTo(0,yz); g.lineTo(W,yz); g.stroke(); }
+  const col=s.color||'#7CFC00';
+  g.strokeStyle=col; g.lineWidth=1.6; g.shadowColor=col; g.shadowBlur=4; g.beginPath();
+  for(let i=0;i<a.length;i++){ const x=i/(SCLEN-1)*W, y=Hh-((a[i]-mn)/rng)*Hh; i?g.lineTo(x,y):g.moveTo(x,y); }
+  g.stroke(); g.shadowBlur=0;
+  if(vel) vel.textContent=a[a.length-1].toFixed(4);
+}
+
+// ---- rendering ----
+function drawField(id,src,mode){
+  const c=document.getElementById(id), g=c.getContext('2d'), img=g.createImageData(G,H), d=img.data;
+  for(let i=0;i<N;i++){ let r,gr,b;
+    if(mode==='resid'){ const v=Math.max(-1,Math.min(1,src[i]*3)); if(v>=0){ r=v*255; gr=v*90; b=0; } else { r=0; gr=-v*160; b=-v*255; } }
+    else { const v=Math.max(0,Math.min(1,src[i])); r=v*94; gr=v*224; b=v*192; }
+    const o=i*4; d[o]=r; d[o+1]=gr; d[o+2]=b; d[o+3]=255; }
+  g.putImageData(img,0,0);
+}
+const hist={comp:[],struct:[],res:[],stab:[]};
+function pushHist(m){ hist.comp.push(m.comp); hist.struct.push(m.struct); hist.res.push(m.res); hist.stab.push(m.stab);
+  for(const k in hist) if(hist[k].length>300) hist[k].shift(); }
+function spark(id,arr,color,fix){ const c=document.getElementById(id), g=c.getContext('2d'), W=c.width,Hh=c.height;
+  g.clearRect(0,0,W,Hh); if(arr.length<2) return; let mx=-1e9,mn=1e9; for(const v of arr){ if(v>mx)mx=v; if(v<mn)mn=v; }
+  if(fix){ mx=Math.max(mx,fix[1]); mn=Math.min(mn,fix[0]); } const rng=(mx-mn)||1;
+  g.strokeStyle=color; g.lineWidth=1.5; g.beginPath();
+  for(let i=0;i<arr.length;i++){ const X=i/(arr.length-1)*W, Y=Hh-3-(arr[i]-mn)/rng*(Hh-6); i?g.lineTo(X,Y):g.moveTo(X,Y); } g.stroke(); }
+
+function render(){
+  drawField('cTarget',target,'field'); drawField('cBelief',pred,'field'); drawCode(); drawField('cResid',finalRes,'resid');
+  const m=window.__metrics||metrics();
+  document.getElementById('mComp').textContent=m.comp.toFixed(3);
+  document.getElementById('mStruct').textContent=m.struct.toFixed(3);
+  document.getElementById('mRes').textContent=m.res.toFixed(4);
+  document.getElementById('mStab').textContent=(m.stab||0).toFixed(3);
+  document.getElementById('mStep').textContent=m.step;
+  spark('spComp',hist.comp,'#5ee0c0',[0,1]); spark('spStruct',hist.struct,'#7fd4ff',[0,1]); spark('spRes',hist.res,'#ffb14e'); spark('spStab',hist.stab,'#c88bff',[0,1]);
+  for(const s of scopes) drawScope(s);
+}
+
+// ---- loop ----
+let cycleT=0;
+function frame(){ if(P.running){ stepOnce();
+    if(P.cycle){ cycleT++; if(cycleT>240){ cycleT=0; P.shape=(P.shape+1)%4; makeShape(P.shape); syncShapeBtns(); } } }
+  render(); requestAnimationFrame(frame); }
+
+// avanzamento deterministico per verifica headless
+window.__advance=(n)=>{ for(let k=0;k<n;k++) stepOnce(); render(); return window.__metrics; };
+
+// ---- controlli ----
+function syncShapeBtns(){ document.querySelectorAll('.shapes button').forEach(b=>b.classList.toggle('on',+b.dataset.s===P.shape)); }
+document.querySelectorAll('.shapes button').forEach(b=>b.onclick=()=>{ P.shape=+b.dataset.s; makeShape(P.shape); syncShapeBtns(); });
+document.getElementById('bTower').onclick=e=>{ P.tower=!P.tower; e.target.classList.toggle('on',P.tower); e.target.textContent=P.tower?'ON':'OFF'; };
+document.getElementById('bOpin').onclick=e=>{ P.opinion=!P.opinion; e.target.classList.toggle('on',P.opinion); e.target.textContent=P.opinion?'ON':'OFF'; };
+document.getElementById('bCycle').onclick=e=>{ P.cycle=!P.cycle; e.target.classList.toggle('on',P.cycle); e.target.textContent=P.cycle?'ON':'OFF'; };
+document.getElementById('bRun').onclick=e=>{ P.running=!P.running; e.target.classList.toggle('on',P.running); e.target.textContent=P.running?'Pausa':'Riprendi'; };
+document.getElementById('bReset').onclick=()=>{ z.fill(0); belief1.fill(0); step=0; for(let i=0;i<4;i++) codeRefs[i]=null; for(const k in hist) hist[k].length=0; clearScopes(); };
+document.getElementById('bNew').onclick=()=>{ z.fill(0); belief1.fill(0); step=0; clearScopes(); };   // tiene il vocabolario (codeRefs) per testare il richiamo
+document.getElementById('sEta').oninput=e=>{ P.eta=+e.target.value; document.getElementById('vEta').textContent=P.eta.toFixed(2); };
+document.getElementById('sNoise').oninput=e=>{ P.noise=+e.target.value; document.getElementById('vNoise').textContent=P.noise.toFixed(2); };
+document.getElementById('sBott').oninput=e=>{ setBottleneck(+e.target.value); for(const k in hist) hist[k].length=0; clearScopes(); };
+
+setBottleneck(bf); makeShape(P.shape); render(); requestAnimationFrame(frame);
+</script>
