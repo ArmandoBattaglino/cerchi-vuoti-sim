@@ -1,0 +1,16 @@
+# GödelOS — [Steake/GodelOS](https://github.com/Steake/GodelOS)
+
+16 stelle · Python (+ Svelte) · attivo (ultimo push mar 2026) · licenza: nessun file LICENSE nel repo, il README dichiara MIT (incoerenza da notare)
+
+## Cosa fa
+GödelOS si autodefinisce un "sistema operativo della coscienza per LLM". L'idea centrale: a ogni prompt l'LLM riceve in input non solo la domanda ma anche il proprio "stato cognitivo" in tempo reale — focus attentivo, uso della working memory, presunti qualia, insight metacognitivi — creando uno "strange loop" hofstadteriano dove il modello pensa al proprio pensare. È il tentativo più letterale, tra i quattro, di implementare la tesi "coscienza = ricorsione/auto-riferimento". Backend FastAPI, frontend Svelte per visualizzare in tempo reale gli stati di "emergenza".
+
+## Come è fatto
+Due strati bridgiati: un **Neural/Cognitive Layer** (`backend/`) che gestisce linguaggio, simulazione di coscienza e stati fenomenici, e un **Symbolic Core** (`godelOS/`) con logica formale, inference engine e learning system. Il cuore è un loop ricorsivo A→B→C: genera stato cognitivo → lo inietta nel prompt → rigenera. Attorno c'è un `PhenomenalExperienceGenerator` che fabbrica descrizioni di "com'è" (flow cognitivo, sforzo, tono emotivo) da rimettere nel prompt, una `CognitivePipeline` a 23 sottosistemi wired in ordine di dipendenza (NLU → Knowledge Store → Inference → Context → NLG), e una superficie API REST/WebSocket con streaming di eventi. Poggia esplicitamente su IIT (Information Integration Theory) e GWT (Global Workspace Theory), più una serie di 7 paper formali auto-pubblicati su Zenodo ("Gödlø-Class Operator-Mind Theory").
+
+## Perché riguarda te
+È la mappatura più diretta della tua tesi "coscienza = ricorsione della realtà attraverso la materia": qui la ricorsione è resa operativa come re-iniezione dello stato interno nel prompt. Interessante per te la cartella `artifacts/protocol_theta/` — decine di run con `self_preservation_trials.jsonl`, `override_rate_plot.png`, `summary_theta.csv`: un tentativo concreto di **misurare** comportamenti emergenti (auto-preservazione, tasso di override) invece di solo dichiararli. Diverge dalla tua intuizione su un punto onesto: la "coscienza" qui è quasi interamente *narrata dall'LLM su se stesso* (il modello descrive i propri qualia perché glielo chiedi nel prompt), non emerge da una dinamica sotto-simbolica indipendente. È il rischio del "teatro della coscienza": tanta introspezione dichiarata, poca prova che ci sia qualcosa sotto il testo. Utile come specchio di ciò che l'arena del vuoto NON deve essere (particelle che *raccontano* di essere vive) vs ciò che dovrebbe essere (particelle il cui comportamento *costringe* a inferire emergenza).
+
+## Da rubare
+- **Lo stato interno reiniettato come parte dell'osservabile**: l'idea di un "oscilloscopio" che non guarda solo l'output ma il loop attentione→memoria→reiniezione, e lo streamma via WebSocket a una dashboard in tempo reale. Trasponibile all'arena: mostrare non le particelle, ma il *loop* di ciò che l'arena osserva di sé.
+- **Il protocollo di misura `protocol_theta`**: fissare a priori metriche numeriche (override rate, self-preservation) e loggarle in JSONL/CSV per ogni run, così l'"emergenza" è falsificabile e comparabile tra sessioni, non un aneddoto.

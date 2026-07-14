@@ -1,0 +1,21 @@
+# PyPhi — A toolbox for Integrated Information Theory (wmayner/pyphi)
+
+Link: https://github.com/wmayner/pyphi
+
+426 stelle · Python · attivo (push luglio 2026) · licenza GPLv3
+
+## Cosa fa
+PyPhi e' l'implementazione canonica della Integrated Information Theory (IIT) di Tononi. Dato un **substrato** (una rete di unita con le sue probabilita di transizione) e uno **stato**, calcola **Φ** (phi, l'informazione integrata del sistema) e la **struttura causa-effetto** che il sistema specifica: le distinzioni (meccanismi irriducibili) e le relazioni che le legano. Il branch principale implementa IIT 4.0 (Albantakis et al., 2023); la linea 1.x su PyPI mantiene IIT 3.0. E' lo strumento formale di riferimento per chiunque voglia misurare "quanta coscienza / integrazione" attribuisce IIT a un sistema.
+
+## Come e' fatto
+L'oggetto centrale e' il **substrate**: un sistema descritto dalla sua transition probability matrix (come ogni unita risponde allo stato delle altre). Su questo PyPhi calcola:
+- **Φ** cercando la **partizione minima** — il taglio del sistema che fa la minima differenza alla sua struttura causa-effetto. Se anche il taglio migliore distrugge molto, il sistema e' integrato (Φ alto); se un taglio non cambia nulla, il sistema e' scomponibile (Φ ~ 0). E' letteralmente "quanto il tutto e' piu della somma delle parti", reso numero.
+- La **Φ-structure**: l'insieme delle distinzioni cause-effetto e delle loro relazioni geometriche.
+Attorno al core c'e' un toolkit ampio: actual causation (quale evento passato ha *davvero* causato il presente), matching/percezione (quanto la struttura causale del sistema combacia con quella dell'ambiente — la base della "significazione intrinseca" in IIT), coarse-graining micro/macro (a quale scala spaziale/temporale l'integrazione e' massima), stime del substrato da dati osservati, generazione di substrati da modelli di Ising, e visualizzazione. Il costo computazionale e' combinatorio (esplora partizioni), quindi molto del lavoro recente e' su bound analitici e caching/parallelismo.
+
+## Perche riguarda te
+PyPhi e' l'**oscilloscopio formale** per eccellenza: prende lo stato interno di un sistema e ne misura una proprieta strutturale — l'integrazione — con una definizione matematica precisa. E' il candidato piu serio a "strumento che legge la coscienza di un sistema", quindi tocca frontalmente la tua tesi coscienza=ricorsione-della-realta-attraverso-la-materia. Punto di contatto forte: la nozione di **matching/percezione** (quanto la struttura causa-effetto del sistema rispecchia quella dell'ambiente) e' vicinissima alla tua idea di ricorsione — un sistema che "contiene" la struttura del mondo che lo contiene. Punto di divergenza altrettanto forte, da tenere onesto: IIT e' *sincronica e statica* — misura Φ su uno stato istantaneo di un substrato con dinamica data, non ha nulla da dire su novita nel tempo, emergenza aperta o auto-costruzione. E' il quasi-opposto di ASAL: dove ASAL misura novita temporale con un giudice esterno appreso, PyPhi misura integrazione istantanea con un principio interno assiomatico. Inoltre e' notoriamente intrattabile oltre ~10-15 unita: non lo applichi mai alla tua arena di particelle direttamente, e' un modello concettuale non uno strumento su larga scala. La lezione piu utile e' probabilmente concettuale (la definizione di integrazione via partizione minima) piu che il codice.
+
+## Da rubare
+1. **Φ via partizione minima come misura di "il tutto e' piu delle parti"**: l'idea di quantificare l'integrazione di un sotto-sistema dell'arena cercando il taglio che fa *meno* differenza e' un oscilloscopio agganciabile a cluster di particelle — anche in versione approssimata/economica (non serve il calcolo IIT completo per usare "quanto un gruppo resiste alla decomposizione" come segnale di emergenza integrata).
+2. **Matching come ricorsione operazionalizzata**: la metrica di quanto la struttura causale interna combacia con quella dell'ambiente e' una definizione concreta della tua ricorsione realta-attraverso-la-materia. Vale la pena leggere `pyphi` sul matching (Mayner et al., 2024) per rubare la *forma* della misura — un sistema premiato quando la sua struttura interna e' un'immagine causale del mondo esterno — e trasportarla come possibile novelty-gate strutturale nell'arena.

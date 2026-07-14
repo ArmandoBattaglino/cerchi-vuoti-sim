@@ -1,0 +1,19 @@
+# danijar/dreamerv3 — [danijar/dreamerv3](https://github.com/danijar/dreamerv3)
+
+Stelle: ~3.5k · Linguaggio: Python (JAX) · Ultima attivita: mag 2026 · Licenza: MIT
+
+## Cosa fa
+Reimplementazione ufficiale di DreamerV3 (paper su Nature 2025), un algoritmo di reinforcement learning general-purpose che padroneggia 150+ domini (Atari, Crafter, controllo continuo DMC, Minecraft con raccolta diamanti da zero) con **un solo set di iperparametri fissi**, senza tuning per-dominio. L'idea vendibile: impara un "modello del mondo" e poi allena la policy quasi interamente *dentro l'immaginazione*, non nell'ambiente reale.
+
+## Come e fatto
+Due pezzi. (1) **World model — RSSM** (Recurrent State-Space Model, `dreamerv3/rssm.py`): comprime gli input sensoriali in uno **stato latente ricorrente** con una parte deterministica (una GRU/RNN che porta la storia) e una parte stocastica fatta di **variabili categoriche discrete** (non gaussiane — scelta chiave per robustezza). Il modello impara a predire lo stato latente successivo dato lo stato + azione, piu' reward e continuazione dell'episodio. (2) **Actor-critic addestrato in "sogno":** una volta che il world model predice bene, si generano rollout puramente immaginati nello spazio latente (nessun contatto con l'ambiente reale durante questi rollout) e su quelle traiettorie sognate si allenano attore e critico. La robustezza multi-dominio a iperparametri fissi viene da un pacchetto di normalizzazioni: symlog sulle magnitudini, two-hot encoding dei reward, percentile-based return normalization, free bits sul KL. Codice in JAX, architettura in `embodied/` (replay, driver, envs, jax nets) + `dreamerv3/agent.py`.
+
+## Perche riguarda te
+Questo e' il repo piu' lontano dalla "vita artificiale" ma il piu' vicino a una tua tesi specifica: l'agire fondato su un mondo interno ricorsivo.
+- **Il "sogno interno" come substrato dell'agire.** DreamerV3 letteralmente non decide guardando il mondo: decide simulando un modello interno del mondo e vivendo dentro quella simulazione. E' un'implementazione ingegneristica, testata su Nature, dell'idea che l'esperienza rilevante e' quella *ricostruita internamente*. Per la tua coscienza-ricorsione e' un caso concreto: la realta' viene ripiegata in un latente e l'agente ricorre su quel latente, non sul reale.
+- **Stato latente ricorrente = traccia che si auto-predice.** L'RSSM e' un sistema che a ogni passo predice il proprio prossimo stato: e' ricorsione della propria rappresentazione nel tempo, con la materia (i pesi della rete) come supporto. Mappa bene sul tuo "ricorsione della realta attraverso la materia".
+- **Dove diverge (onesto):** qui non c'e emergenza dal basso ne vuoto. Tutto e' guidato dal reward e da un'architettura pesantemente ingegnerizzata; il latente categorico e' progettato, non emerso. Non c'e novelty-gate esplicito (anche se esistono varianti Dreamer con curiosita/plan2explore che potresti cercare). E' l'opposto di Lenia: massima struttura imposta, zero auto-organizzazione spontanea. Serve come modello di "cosa vuol dire davvero avere un mondo interno che genera comportamento", non come modello di emergenza.
+
+## Da rubare
+1. **Il pattern "impara-il-modello, poi allena-nel-sogno":** anche fuori dall'RL, e' un'architettura mentale utile per l'arena — un osservatore/oscilloscopio che costruisce un modello compresso di cio' che vede e poi "gira in avanti" quel modello per anticipare, invece di reagire allo stato grezzo. Separare nettamente "vivere l'arena" da "sognare l'arena".
+2. **Lo stato latente stocastico-categorico + normalizzazioni robuste (symlog, two-hot, free-bits):** se mai vorrai dare a un agente nell'arena una memoria/percezione compressa che regge magnitudini e distribuzioni molto diverse senza tuning, questo e' il ricettario collaudato di trucchi per non far esplodere l'apprendimento su input eterogenei.

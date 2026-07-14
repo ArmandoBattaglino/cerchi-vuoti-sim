@@ -1,0 +1,20 @@
+# hunar4321/particle-life — [hunar4321/particle-life](https://github.com/hunar4321/particle-life)
+
+Stelle: ~3.3k · Linguaggio: HTML/JS (+ C++, Python) · Ultima attivita: ago 2024 · Licenza: MIT
+
+## Cosa fa
+Simulazione di vita artificiale dove l'unica regola e' una forza di attrazione/repulsione tra particelle colorate. Definisci una matrice di coefficienti (quanto il colore A e' attratto/respinto dal colore B, per ogni coppia) e da queste regole minime emergono pattern e "organismi" complessi e auto-organizzanti: cellule con membrana, vermi, strutture che si muovono, si dividono, si inseguono. E' uno dei repo Particle Life piu' popolari, reso virale dal tutorial YouTube; il codice, tolta la GUI, sta in meno di una pagina.
+
+## Come e fatto
+Il nucleo e' brutale nella sua semplicita' (visibile direttamente nello snippet JS del README). Per ogni coppia di gruppi-colore c'e' una `rule(atomsA, atomsB, g)`: per ogni particella di A somma su ogni particella di B una forza `F = g / d` lungo la direzione `dx, dy`, ma **solo entro un raggio** (`d < 80`) — oltre quel raggio le particelle non si vedono. La forza aggiorna la velocita' con smorzamento (`vx = (vx + fx) * 0.5`), la velocita' aggiorna la posizione, i bordi rimbalzano. Il segno e la magnitudine di `g` per ogni coppia (verde-verde = -0.32, verde-giallo = +0.34, ...) sono l'unico "DNA" del mondo. Nessuna regola di alto livello, nessun concetto di "organismo": tutto e' interazione locale a coppie dentro un raggio. Versioni 2D e 3D, in C++ (openFrameworks, il core sono le prime ~100 righe di `ofApp.cpp`), JS e Python. Il metodo di scoperta suggerito e' esplicito: parametri random -> trovi qualcosa di interessante -> fine-tuning graduale + salti occasionali grandi per non incastrarti in un massimo locale.
+
+## Perche riguarda te
+Questo e' il candidato piu' letterale per "particelle-emergenza" e per il motore di un'arena del vuoto discreta:
+- **Emergenza pura da regole locali povere.** Nessuna semantica, nessun LLM, nessun reward: solo `F = g/d` entro un raggio e una matrice di segni. Eppure nascono entita' con confine, movimento coordinato, auto-replicazione apparente. E' la dimostrazione minima che "complessita' viva" puo' venire dal quasi-nulla — il cuore della tua intuizione sul vuoto che genera.
+- **Il "DNA" e' la matrice di interazione.** L'identita' del mondo sta interamente nei coefficienti coppia-a-coppia. E' un manico perfetto: puoi rendere quella matrice il tuo spazio di ricerca, e la novelty-gate diventa "questa matrice ha prodotto un pattern che non avevo mai visto?".
+- **Raggio di interazione = localita' dell'osservatore.** Il cutoff `d < 80` e' esattamente la nozione che ogni particella "vede" solo il suo intorno — utile se pensi a oscilloscopi/osservatori locali immersi nel campo.
+- **Dove diverge (onesto):** e' senza tempo lungo e senza memoria — le particelle non conservano storia, non c'e' consolidamento, non c'e' ricorsione di ordine superiore (a differenza della reflection di Generative Agents o del latente di Dreamer). L'emergenza e' bella ma "piatta": non costruisce livelli. Se cerchi la ricorsione-della-realta a piu' strati, questo ti da solo il livello base, il substrato — va accoppiato con un meccanismo di memoria/astrazione che qui manca del tutto. Inoltre e' O(N^2) naive: per un'arena grande serve spatial hashing.
+
+## Da rubare
+1. **Il motore in ~30 righe (matrice di forze coppia-colore + cutoff di raggio + smorzamento):** e' il modo piu' economico per avere un'arena di particelle emergenti che gira subito nel browser. Prendi lo snippet JS del README come punto zero e costruisci il resto sopra.
+2. **Il protocollo di esplorazione "random -> fine-tune -> salti grandi anti-local-max":** e' gia una ricetta di ricerca nello spazio dei parametri. Formalizzalo come loop novelty-gated: campiona matrici a caso, misura una novelty del pattern risultante, tieni e affina solo quelle che sorprendono, inietta salti grandi quando la novelty stagna. Cosi la tua "memoria novelty-gated" diventa il curatore dello zoo di mondi.

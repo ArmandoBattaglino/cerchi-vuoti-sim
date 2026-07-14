@@ -1,0 +1,16 @@
+# collective_motion_actinf — [github.com/conorheins/collective_motion_actinf](https://github.com/conorheins/collective_motion_actinf)
+
+55 stelle · Python (JAX) + Julia · push feb 2026 · nessuna licenza dichiarata (default: tutti i diritti riservati)
+
+## Cosa fa
+Codice companion del paper "Collective behavior from surprise minimization" (PNAS 2024, Heins, Millidge, Da Costa, Mann, Friston, Couzin). Simula il **moto collettivo emergente** — sciami, banchi, schooling — da gruppi di agenti active inference continui nello spazio e nel tempo. Il comportamento di gruppo (allineamento, coesione, milling) non e' programmato: emerge dal fatto che ogni agente minimizza localmente la propria surprise/free energy sulle osservazioni dei vicini.
+
+## Come e' fatto
+Due implementazioni: JAX (`jax_backend/`, quella raccomandata, gira su GPU) e Julia. Il modello mette a confronto la fenomenologia con il classico **Couzin 2-zone** (`couzin_2zone.py`) — repulsione/allineamento/attrazione — ma qui le "zone" e le precisioni non sono regole ad hoc: emergono da un modello generativo per-agente. Il pezzo interessante e' la marea di **demo con learning** (`demo_scripts_with_learning/`): gli agenti non hanno solo dinamica fissa, apprendono i parametri del proprio modello — precisioni (piw/piz), eta, smoothness sz/sw, coupling — e c'e' un intero filone di **esperimenti di perturbazione** (`demos_perturbations/`) dove disturbi lo sciame e misuri come/se recupera la coerenza, con e senza apprendimento. E' un banco sperimentale, non una libreria d'uso: decine di script demo, ciascuno isola un parametro o una condizione.
+
+## Perche' riguarda te
+E' quasi la definizione operativa della tua "arena del vuoto con particelle che si auto-organizzano": tanti agenti locali identici, nessun direttore d'orchestra, e da regole di minimizzazione locale emergono pattern collettivi globali (i "campi" e le formazioni). Piu' rilevante del solito modello di flocking perche' qui l'aggregazione non e' una regola cablata ma una *conseguenza* dell'inferenza — che e' esattamente la tesi "coscienza/struttura = ricorsione della realta' attraverso la materia" declinata al livello piu' basso: l'ordine non e' imposto, e' cio' che resta quando ogni parte riduce la propria sorpresa. Gli esperimenti di perturbazione sono direttamente ciò che vorresti fare tu: colpisci l'arena, guarda su un oscilloscopio la coerenza collettiva rientrare. Dove diverge: zero pretese di coscienza o di anello riflessivo — e' fisica dell'emergenza multi-agente, il "guardarsi" non c'e'.
+
+## Da rubare
+1. **Perturbazione come misura, non come glitch.** Il pattern `demos_perturbations` — stato base → applica disturbo → traccia il recupero, con/senza learning — e' un protocollo pronto per l'arena: rende l'auto-organizzazione *misurabile* (tempo di recupero, coerenza residua) invece che solo bella da vedere.
+2. **Emergenza da free-energy locale invece che da regole di flocking.** Se nell'arena le particelle attualmente seguono regole tipo Couzin cablate, sostituiscile con "ogni particella minimizza la sorpresa sulle osservazioni dei vicini": l'allineamento/coesione emerge come sottoprodotto, e i "parametri di zona" diventano quantita' apprese e leggibili — molto piu' in linea con la tua tesi che l'ordine emerge, non si prescrive.
